@@ -23,9 +23,6 @@ public class Discovery {
 
 
 
-
-
-
     private void validate(RoutingContext context) {
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
@@ -114,6 +111,9 @@ public class Discovery {
                     });
                 }
             }
+            case "update" ->{
+                context.next();
+            }
         }
 
     }
@@ -132,7 +132,19 @@ public class Discovery {
         });
     }
     private void update(RoutingContext context) {
-        System.out.println("In update");
+        var response = context.response();
+        var eventBus = Bootstrap.getVertx().eventBus();
+        eventBus.<JsonObject>request(DISCOVERY_DATABASE_UPDATE,context.getBodyAsJson(),handler ->{
+            if(handler.succeeded()){
+                if(handler.result().body().getString(STATUS).equals(SUCCESS)){
+                    response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS,SUCCESS).encodePrettily());
+                }else{
+                    response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS,FAIL).put(ERROR,handler.result().body().getString(ERROR)).encodePrettily());
+                }
+            }
+        });
     }
     private void delete(RoutingContext context) {
         HttpServerResponse response = context.response();

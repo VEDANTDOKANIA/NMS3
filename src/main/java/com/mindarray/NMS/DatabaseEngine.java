@@ -132,14 +132,14 @@ public class DatabaseEngine extends AbstractVerticle {
         });
 
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_DELETE,handler -> {
-                    var result = delete("discovery", "id", handler.body().getString(DISCOVERY_NAME));
-                    result.onComplete(completeHandler -> {
-                        if (result.succeeded()) {
-                            handler.reply(result.result());
-                        } else {
-                            handler.reply(handler.body().put(ERROR, result.cause().getMessage()).put(STATUS, FAIL));
-                        }
-                    });
+            var result = delete("discovery", "id", handler.body().getString(DISCOVERY_NAME));
+            result.onComplete(completeHandler -> {
+                if (result.succeeded()) {
+                    handler.reply(result.result());
+                } else {
+                    handler.reply(handler.body().put(ERROR, result.cause().getMessage()).put(STATUS, FAIL));
+                }
+            });
                 });
 
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_GET,handler ->{
@@ -153,7 +153,27 @@ public class DatabaseEngine extends AbstractVerticle {
             });
         });
 
+        eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_UPDATE,handler ->{
+            var result = update("discovery",handler.body());
+            result.onComplete( completeHandler ->{
+                if(result.succeeded()){
+                    handler.reply(result.result());
+                }else{
+                    handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                }
+            });
+        });
 
+        eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_UPDATE,handler ->{
+            var result = update("credential",handler.body());
+            result.onComplete( completeHandler ->{
+                if(result.succeeded()){
+                    handler.reply(result.result());
+                }else{
+                    handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                }
+            });
+        });
 
         startPromise.complete();
     }
@@ -218,7 +238,32 @@ public class DatabaseEngine extends AbstractVerticle {
         }
        return promise.future();
     }
-
+    private Future<JsonObject> delete(String table ,String column ,String data){
+        var errors = new ArrayList<String>();
+        Promise<JsonObject> promise = Promise.promise();
+        if( table ==null || column == null || data ==null){
+            errors.add("null occurred");
+        }else{
+            Bootstrap.getVertx().executeBlocking(handler ->{
+                try (var connection = connect()){
+                    var statement = connection.createStatement();
+                    statement.execute("use nms");
+                    var query ="Delete from " + table +" where " + column + " = " +"\""+data+"\";";
+                    statement.execute(query);
+                }catch (Exception exception){
+                    errors.add(exception.getCause().getMessage());
+                }
+                handler.complete();
+            }).onComplete( completeHandler ->{
+                if(errors.isEmpty()){
+                    promise.complete(new JsonObject().put(STATUS,SUCCESS));
+                }else{
+                    promise.fail(errors.toString());
+                }
+            });
+        }
+        return promise.future();
+    }
     private Future<JsonObject> createCredential(JsonObject credential){
         var errors = new ArrayList<String>();
         Promise<JsonObject> promise = Promise.promise();
@@ -257,40 +302,9 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
                 promise.complete(credential);
             });
-
         }
       return promise.future();
     }
-
-    private Future<JsonObject> delete(String table ,String column ,String data){
-        var errors = new ArrayList<String>();
-        var result = new JsonObject();
-        Promise<JsonObject> promise = Promise.promise();
-        if( table ==null || column == null || data ==null){
-            errors.add("null occurred");
-        }else{
-            Bootstrap.getVertx().executeBlocking(handler ->{
-                try (var connection = connect()){
-                    var statement = connection.createStatement();
-                    statement.execute("use nms");
-                    var query ="Delete from " + table +" where " + column + " = " +"\""+data+"\";";
-                    statement.execute(query);
-                }catch (Exception exception){
-                    errors.add(exception.getCause().getMessage());
-                }
-                handler.complete();
-            }).onComplete( completeHandler ->{
-                if(errors.isEmpty()){
-                   promise.complete(new JsonObject().put(STATUS,SUCCESS));
-                }else{
-                   promise.fail(errors.toString());
-                }
-            });
-
-        }
-      return promise.future();
-    }
-
     private Future<JsonObject> getCredential(String condition ,String column ,String value){
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -339,7 +353,6 @@ public class DatabaseEngine extends AbstractVerticle {
         });
    return promise.future();
     }
-
     private Future<JsonObject> createDiscovery(JsonObject credential){
         var errors = new ArrayList<String>();
         Promise<JsonObject> promise = Promise.promise();
@@ -374,7 +387,6 @@ public class DatabaseEngine extends AbstractVerticle {
         });
            return promise.future();
     }
-
     private Future<JsonObject> getDiscovery(String condition ,String column ,String value){
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -415,6 +427,55 @@ public class DatabaseEngine extends AbstractVerticle {
                 promise.fail(error.toString());
             }
 
+        });
+        return promise.future();
+    }
+
+    private Future<JsonObject> update(String table , JsonObject credential){
+        Promise<JsonObject> promise = Promise.promise();
+        var error = new ArrayList<String>();
+        var query = new StringBuilder();
+        query.append("Update ").append(table).append(" set ");
+        credential.stream().forEach( value ->{
+            var column = value.getKey();
+
+            var data = credential.getValue(column);
+            if(column.equals("credential.profile")){
+                column = "credential_profile" ;
+            }else if(column.equals(table+"."+"name")){
+                column="name";
+            }
+            if(!column.equals("id") && (!column.equals("type")) && (!column.equals("protocol"))  ) {
+                if (data instanceof String) {
+                    query.append(column + "=");
+                    query.append("\"" + data + "\",");
+                } else {
+                    query.append(column + "=");
+                    query.append(data + ",");
+                }
+            }
+        });
+        query.setLength(query.length()-1);
+        query.append(" where id = \"").append(credential.getString("id")+"\";");
+        System.out.println(query);
+        Bootstrap.getVertx().executeBlocking(handler ->{
+            try(var connection = connect()){
+                var statement = connection.createStatement();
+                statement.execute("use nms;");
+                var flag =statement.executeUpdate(query.toString());
+                if(flag == 0){
+                    error.add("No data to update");
+                }
+            }catch (Exception exception){
+                error.add(exception.getCause().getMessage());
+            }
+            handler.complete();
+        }).onComplete( completeHandler ->{
+            if(error.isEmpty()){
+                promise.complete(credential.put(STATUS,SUCCESS));
+            }else{
+                promise.fail(error.toString());
+            }
         });
         return promise.future();
     }

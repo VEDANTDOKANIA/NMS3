@@ -140,8 +140,20 @@ public class Credential {
 
         });
     }
-
     private void update(RoutingContext context) {
+        var response = context.response();
+        var eventBus = Bootstrap.getVertx().eventBus();
+        eventBus.<JsonObject>request(CREDENTIAL_DATABASE_UPDATE,context.getBodyAsJson(),handler ->{
+            if(handler.succeeded()){
+                if(handler.result().body().getString(STATUS).equals(SUCCESS)){
+                    response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS,SUCCESS).encodePrettily());
+                }else{
+                    response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS,FAIL).put(ERROR,handler.result().body().getString(ERROR)).encodePrettily());
+                }
+            }
+        });
     }
 
     private void create(RoutingContext context) {
