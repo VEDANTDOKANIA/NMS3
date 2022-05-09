@@ -33,7 +33,6 @@ public class DatabaseEngine extends AbstractVerticle {
 
             });
         });
-
         eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_CREATE,handler ->{
             if(handler.body() != null){
                 var result = createCredential(handler.body());
@@ -47,7 +46,6 @@ public class DatabaseEngine extends AbstractVerticle {
 
 
         });
-
         eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_DELETE,handler ->{
             var result =delete("credential","name",handler.body().getString(CREDENTIAL_NAME));
             result.onComplete(completeHandler ->{
@@ -59,14 +57,12 @@ public class DatabaseEngine extends AbstractVerticle {
 
             });
         });
-
         eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_GET,handler ->{
           var result = getCredential("all",null,null);
           result.onComplete( completeHandler ->{
               handler.reply(result.result());
           });
         });
-
         eventBus.<String>localConsumer(CREDENTIAL_DATABASE_CHECK_ID,handler ->{
             var result = check("credential","id",handler.body());
             result.onComplete(context ->{
@@ -77,6 +73,59 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             });
         });
+        eventBus.<String>localConsumer(CREDENTIAL_DATABASE_GET_ID,handler ->{
+            var result = getCredential("individual","id",handler.body());
+            result.onComplete( completeHandler ->{
+                handler.reply(result.result());
+            });
+        });
+        eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_CHECK_MULTIPLE,handler ->{
+            var idCheck = check("credential","id",handler.body().getString(CREDENTIAL_ID));
+            var errors = new ArrayList<String>();
+            if(handler.body().containsKey(CREDENTIAL_NAME)){
+                var nameCheck =check("credential","name",handler.body().getString(CREDENTIAL_NAME));
+                nameCheck.onComplete(completeHandler ->{
+                    if(completeHandler.succeeded()){
+                        errors.add("Name is not unique");
+                    }
+                });
+            }
+            idCheck.onComplete( completeHandler ->{
+                if(idCheck.succeeded()){
+                    var protocol = getCredential("individual","id",handler.body().getString(CREDENTIAL_ID));
+                    protocol.onComplete(protocolHandler ->{
+                        if(protocolHandler.succeeded()){
+                            var protocolValue = protocol.result().getJsonArray("result").getJsonObject(0).getString(CREDENTIAL_PROTOCOl);
+                            if(protocolValue.equals("snmp")) {
+                                if (handler.body().containsKey(USERNAME) || handler.body().containsKey(PASSWORD)) {
+                                    errors.add("Username and password does not comes in snmp protocol");
+                                }
+                            } else {
+                                    if(handler.body().containsKey(COMMUNITY) || handler.body().containsKey(VERSION)){
+                                        errors.add("Community and version does not comes in "+ protocolValue);
+                                    }
+                                }
+                        }else{
+                            errors.add(protocolHandler.cause().getMessage());
+                        }
+                    });
+                }else{
+                    errors.add(idCheck.cause().getMessage());
+                }
+
+            });
+        });
+        eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_UPDATE,handler ->{
+            var result = update("credential",handler.body());
+            result.onComplete( completeHandler ->{
+                if(result.succeeded()){
+                    handler.reply(result.result());
+                }else{
+                    handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                }
+            });
+        });
+
 
         eventBus.<String>localConsumer(DISCOVERY_DATABASE_CHECK_ID,handler ->{
             var result = check("discovery","id",handler.body());
@@ -88,14 +137,6 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             });
         });
-
-        eventBus.<String>localConsumer(CREDENTIAL_DATABASE_GET_ID,handler ->{
-            var result = getCredential("individual","id",handler.body());
-            result.onComplete( completeHandler ->{
-                handler.reply(result.result());
-            });
-        });
-
         eventBus.<String>localConsumer(DISCOVERY_DATABASE_GET_ID,handler ->{
             var result = getDiscovery("individual","id",handler.body());
             result.onComplete( completeHandler ->{
@@ -106,7 +147,6 @@ public class DatabaseEngine extends AbstractVerticle {
                }
             });
         });
-
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_CHECK_NAME, handler ->{
             var name = check("discovery","name",handler.body().getString(DISCOVERY_NAME));
             var profile = check("credential","id",handler.body().getString(CREDENTIAL_PROFILE));
@@ -118,7 +158,6 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             });
             });
-
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_CREATE,handler ->{
             var result = createDiscovery(handler.body());
             result.onComplete(context ->{
@@ -130,7 +169,6 @@ public class DatabaseEngine extends AbstractVerticle {
             });
 
         });
-
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_DELETE,handler -> {
             var result = delete("discovery", "id", handler.body().getString(DISCOVERY_NAME));
             result.onComplete(completeHandler -> {
@@ -141,7 +179,6 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             });
                 });
-
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_GET,handler ->{
             var result = getDiscovery("all",null,null);
             result.onComplete( completeHandler ->{
@@ -152,7 +189,6 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             });
         });
-
         eventBus.<JsonObject>localConsumer(DISCOVERY_DATABASE_UPDATE,handler ->{
             var result = update("discovery",handler.body());
             result.onComplete( completeHandler ->{
@@ -164,16 +200,7 @@ public class DatabaseEngine extends AbstractVerticle {
             });
         });
 
-        eventBus.<JsonObject>localConsumer(CREDENTIAL_DATABASE_UPDATE,handler ->{
-            var result = update("credential",handler.body());
-            result.onComplete( completeHandler ->{
-                if(result.succeeded()){
-                    handler.reply(result.result());
-                }else{
-                    handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
-                }
-            });
-        });
+
 
         startPromise.complete();
     }
@@ -430,7 +457,6 @@ public class DatabaseEngine extends AbstractVerticle {
         });
         return promise.future();
     }
-
     private Future<JsonObject> update(String table , JsonObject credential){
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -438,7 +464,6 @@ public class DatabaseEngine extends AbstractVerticle {
         query.append("Update ").append(table).append(" set ");
         credential.stream().forEach( value ->{
             var column = value.getKey();
-
             var data = credential.getValue(column);
             if(column.equals("credential.profile")){
                 column = "credential_profile" ;

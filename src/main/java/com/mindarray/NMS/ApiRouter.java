@@ -25,7 +25,7 @@ public class ApiRouter extends AbstractVerticle {
         discovery.init(router);
         var credential = new Credential();
         credential.init(router);
-        vertx.createHttpServer().requestHandler(mainRouter).listen(5555).onComplete( handler ->{
+        vertx.createHttpServer().requestHandler(mainRouter).listen(5556).onComplete( handler ->{
             if(handler.succeeded()){
                 LOGGER.info("HTTP server started");
                 startPromise.complete();

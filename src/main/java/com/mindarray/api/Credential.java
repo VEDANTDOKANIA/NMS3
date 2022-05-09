@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Objects;
 
 import static com.mindarray.NMS.Constant.*;
 
@@ -21,7 +20,7 @@ public class Credential {
         router.route().setName("update").method(HttpMethod.PUT).path(CREDENTIAL_ENDPOINT).handler(this::validate).handler(this::update);
         router.route().setName("delete").method(HttpMethod.DELETE).path(CREDENTIAL_ENDPOINT).handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(CREDENTIAL_ENDPOINT).handler(this::get);
-        router.route().setName("get").method(HttpMethod.GET).path(CREDENTIAL_ENDPOINT +"/:id/").handler(this::validate).handler(this::getByID);
+        router.route().setName("get").method(HttpMethod.GET).path(CREDENTIAL_ENDPOINT +"/:id/").handler(this::validate).handler(this::getById);
     }
 
 
@@ -30,6 +29,7 @@ public class Credential {
     private void validate(RoutingContext context) {
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
+        //trim data
         if(!(context.currentRoute().getName().equals("get"))){
             var credentials = context.getBodyAsJson();
             credentials.stream().forEach(value->{
@@ -83,14 +83,30 @@ public class Credential {
             }
             case "delete" ->{
                 if(context.getBodyAsJson().containsKey(CREDENTIAL_NAME) && context.getBodyAsJson().getString(CREDENTIAL_NAME)!= null){
-                   context.next();
-                }else{
+                }else{                   context.next();
+
                     HttpServerResponse response = context.response();
                     response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
                     response.end(new JsonObject().put("message","Unable to find credential name").put(STATUS,FAIL).encodePrettily());
                 }
             }
-            case "update" ->{}
+            case "update" ->{
+                var response = context.response();
+                if((!(context.getBodyAsJson().containsKey(CREDENTIAL_ID))) || context.getBodyAsJson().getString(CREDENTIAL_ID).equals(null) ){
+                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
+                    response.end(new JsonObject().put(MESSAGE,"id is null").put(STATUS,FAIL).encodePrettily());
+                }else{
+                    eventBus.<JsonObject>request(CREDENTIAL_DATABASE_CHECK_MULTIPLE,context.getBodyAsJson(),handler->{
+                        if(handler.result().body().getString(STATUS).equals(SUCCESS)){
+                            context.next();
+                        }else{
+                            response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
+                            response.end(new JsonObject().put(ERROR,handler.result().body().getValue(ERROR)).put(STATUS,FAIL).encodePrettily());
+
+                        }
+                    });
+                }
+            }
             case "get" ->{
                 HttpServerResponse response = context.response();
                 if(context.pathParam("id")==null){
@@ -155,7 +171,6 @@ public class Credential {
             }
         });
     }
-
     private void create(RoutingContext context) {
        var eventBus = Bootstrap.vertx.eventBus();
        var response = context.response();
@@ -176,7 +191,6 @@ public class Credential {
        });
 
     }
-
     private void get(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
@@ -197,8 +211,7 @@ public class Credential {
             }
         });
     }
-
-    private void getByID(RoutingContext context) {
+    private void getById(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
         String msg = context.pathParam("id");

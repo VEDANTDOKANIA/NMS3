@@ -8,7 +8,6 @@ public class Constant {
     //Event Bus Constants
     public static final String DISCOVERY_ENDPOINT = "/Discovery";
     public static final String CREDENTIAL_ENDPOINT ="/Credential";
-
     public static final String HEADER_TYPE = "application/json";
 
     //Credential Database Address
@@ -45,6 +44,7 @@ public class Constant {
 
 
     //Credential JSON
+    public static final String CREDENTIAL_ID ="id";
     public static final String CREDENTIAL_NAME ="credential.name";
     public static final String CREDENTIAL_PROFILE ="credential.profile";
     public static final String CREDENTIAL_PROTOCOl ="protocol";

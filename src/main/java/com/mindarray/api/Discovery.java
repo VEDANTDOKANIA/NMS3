@@ -10,7 +10,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 
 import static com.mindarray.NMS.Constant.*;
-import static com.mindarray.NMS.Constant.CREDENTIAL_ENDPOINT;
 
 public class Discovery {
     public void init(Router router) {
@@ -18,7 +17,7 @@ public class Discovery {
         router.route().setName("update").method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::update);
         router.route().setName("delete").method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT+ "/:name/").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT).handler(this::get);
-        router.route().setName("get").method(HttpMethod.GET).path(DISCOVERY_ENDPOINT+"/:id/").handler(this::validate).handler(this::getByID);
+        router.route().setName("get").method(HttpMethod.GET).path(DISCOVERY_ENDPOINT+"/:id/").handler(this::validate).handler(this::getById);
     }
 
 
@@ -179,7 +178,7 @@ public class Discovery {
             }
         });
     }
-    private void getByID(RoutingContext context) {
+    private void getById(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
         String msg = context.pathParam("id");
