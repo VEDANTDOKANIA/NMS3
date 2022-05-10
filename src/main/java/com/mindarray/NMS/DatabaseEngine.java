@@ -5,17 +5,14 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import netscape.javascript.JSObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.swing.*;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Base64;
-
 import static com.mindarray.NMS.Constant.*;
 
 public class DatabaseEngine extends AbstractVerticle {
@@ -28,62 +25,77 @@ public class DatabaseEngine extends AbstractVerticle {
                 case CREDENTIAL_DATABASE_CHECK_NAME ->{
                     var result = check("credential","name",handler.body().getString(CREDENTIAL_NAME));
                     result.onComplete(context ->{
-                        if(result.succeeded() && result.result().getBoolean(EXIST)==true){
+                        if(result.succeeded()){
                             handler.reply(handler.body().put(STATUS,SUCCESS));
                         }else{
-                            handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
 
                     });
                 }
                 case CREDENTIAL_DATABASE_CREATE -> {
-                    if(handler.body() != null){
                         var result = createCredential(handler.body());
                         result.onComplete(completeHandler ->{
-                            handler.reply(completeHandler.result());
+                            if(completeHandler.succeeded()){
+                                handler.reply(completeHandler.result());
+                            }else {
+                                handler.fail(-1,completeHandler.cause().getMessage());
+                            }
+
                         });
-                    }else{
-                        LOGGER.error("Handler received null during create");
-                        handler.reply( new JsonObject().put(STATUS,FAIL).put(ERROR,"Handler received null"));
-                    }
-
-
                 }
                 case CREDENTIAL_DATABASE_DELETE -> {
-                    var result =delete("credential","name",handler.body().getString(CREDENTIAL_NAME));
+                    var result =delete("credential","id",handler.body().getString(CREDENTIAL_ID));
                     result.onComplete(completeHandler ->{
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else{
-                            handler.reply(handler.body().put(ERROR,result.cause().getMessage()).put(STATUS,FAIL));
+                            handler.fail(-1,result.cause().getMessage());
                         }
-
                     });
                 }
                 case CREDENTIAL_DATABASE_GET -> {
                     var result = getCredential("all",null,null);
                     result.onComplete( completeHandler ->{
-                        handler.reply(result.result());
+                        if(completeHandler.succeeded()) {
+                            handler.reply(result.result());
+                        }else{
+                            handler.fail(-1,completeHandler.cause().getMessage());
+                        }
                     });
                 }
                 case CREDENTIAL_DATABASE_CHECK_ID ->{
-                    var result = check("credential","id",handler.body().getString(CREDENTIAL_ID));
-                    result.onComplete(context ->{
-                        if(result.succeeded() && result.result().getBoolean(EXIST)==false){
-                            handler.reply( result.result());
+                    var checkId = check("credential","id",handler.body().getString(CREDENTIAL_ID));
+                    var checkProfile = check("discovery","credential_profile",handler.body().getString(CREDENTIAL_ID));
+                    CompositeFuture.join(checkId,checkProfile).onComplete(completeHandler ->{
+                        if(completeHandler.succeeded()){
+                            if(checkProfile.succeeded()){
+                                handler.fail(-1,"Cannot delete because profile belongs to the discovery");
+                            }else{
+                                handler.reply(handler.body());
+                            }
                         }else{
-                            handler.reply(new JsonObject().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            if(checkProfile.failed()){
+                                handler.reply(handler.body());
+                            }else{
+                                handler.fail(-1,completeHandler.cause().getMessage());
+                            }
                         }
                     });
+
                 }
                 case CREDENTIAL_DATABASE_GET_ID -> {
                     var result = getCredential("individual","id",handler.body().getString(CREDENTIAL_ID));
                     result.onComplete( completeHandler ->{
-                        handler.reply(result.result());
+                        if(completeHandler.succeeded()) {
+                            handler.reply(result.result());
+                        }else{
+                            handler.fail(-1,completeHandler.cause().getMessage());
+                        }
                     });
                 }
                 case CREDENTIAL_DATABASE_CHECK_MULTIPLE -> {
-                    var errors = new ArrayList<String>();
+
                     var futures = new ArrayList<Future>();
                     if(handler.body().containsKey(CREDENTIAL_ID)){
                         var idCheck = check("credential","id",handler.body().getString(CREDENTIAL_ID));
@@ -108,7 +120,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else{
-                            handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
                 }
@@ -124,7 +136,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply( result.result());
                         }else{
-                            handler.reply(new JsonObject().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
                 }
@@ -134,7 +146,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else{
-                            handler.reply( new JsonObject().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
                 }
@@ -145,7 +157,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(completeHandler.succeeded()){
                             handler.reply(handler.body().put(STATUS,SUCCESS));
                         }else{
-                            handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,completeHandler.cause().getMessage()));
+                            handler.fail(-1,completeHandler.cause().getMessage());
                         }
                     });
                 }
@@ -155,7 +167,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else if(result.failed()){
-                            handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
 
@@ -166,7 +178,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if (result.succeeded()) {
                             handler.reply(result.result());
                         } else {
-                            handler.reply(handler.body().put(ERROR, result.cause().getMessage()).put(STATUS, FAIL));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
                 }
@@ -176,7 +188,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else{
-                            handler.reply(handler.body().put(ERROR,result.cause().getMessage()).put(STATUS,FAIL));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });
                 }
@@ -201,11 +213,10 @@ public class DatabaseEngine extends AbstractVerticle {
                                if(errors.isEmpty()){
                                    handler.reply(handler.body().put(STATUS,SUCCESS));
                                }else{
-                                   handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,errors.toString()));
+                                   handler.fail(-1,errors.toString());
                                }
                    }
                    );
-
 
                 }
                 case DISCOVERY_DATABASE_UPDATE -> {
@@ -215,11 +226,10 @@ public class DatabaseEngine extends AbstractVerticle {
                         if(result.succeeded()){
                             handler.reply(result.result());
                         }else{
-                            handler.reply(handler.body().put(STATUS,FAIL).put(ERROR,result.cause().getMessage()));
+                            handler.fail(-1,result.cause().getMessage());
                         }
                     });}
             }
-
         });
         startPromise.complete();
     }
@@ -242,14 +252,13 @@ public class DatabaseEngine extends AbstractVerticle {
         return encoder.encodeToString(buffer);
     }
     private Future<JsonObject> check(String table , String column , String data){
-
         var errors = new ArrayList<String>();
         Promise<JsonObject> promise = Promise.promise();
         if( table ==null || column == null || data ==null){
            errors.add("null occurred");
         }else{
               Bootstrap.getVertx().<JsonObject>executeBlocking( handler ->{
-                try(var connection = connect();){
+                try(var connection = connect()){
                     var statement = connection.createStatement();
                     statement.execute("use nms");
                     var query = "select exists(select *  from "+ table + " where " + column +"=\""+data+"\");";
@@ -364,7 +373,8 @@ public class DatabaseEngine extends AbstractVerticle {
             try(var connection = connect()){
                 var statement = connection.createStatement();
                 statement.execute("use nms;");
-                var resultSet = statement.executeQuery(query);
+                ResultSet resultSet;
+                resultSet = statement.executeQuery(query);
                 while(resultSet.next()){
                     var data = new JsonObject();
                     data.put(CREDENTIAL_PROFILE,resultSet.getString(1));
@@ -487,17 +497,16 @@ public class DatabaseEngine extends AbstractVerticle {
                 column="name";
             }
             if(!column.equals("id") && (!column.equals("type")) && (!column.equals("protocol"))  ) {
+                query.append(column).append("=");
                 if (data instanceof String) {
-                    query.append(column + "=");
-                    query.append("\"" + data + "\",");
+                    query.append("\"").append(data).append("\",");
                 } else {
-                    query.append(column + "=");
-                    query.append(data + ",");
+                    query.append(data).append(",");
                 }
             }
         });
         query.setLength(query.length()-1);
-        query.append(" where id = \"").append(credential.getString("id")+"\";");
+        query.append(" where id = \"").append(credential.getString("id")).append("\";");
         System.out.println(query);
         Bootstrap.getVertx().executeBlocking(handler ->{
             try(var connection = connect()){

@@ -1,16 +1,12 @@
 package com.mindarray.NMS;
-
 import com.mindarray.api.Credential;
 import com.mindarray.api.Discovery;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
-import io.vertx.ext.auth.authentication.Credentials;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.mindarray.NMS.Constant.*;
 
 public class ApiRouter extends AbstractVerticle {
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiRouter.class);
@@ -33,7 +29,8 @@ public class ApiRouter extends AbstractVerticle {
                 LOGGER.info("Unable to start HTTP server"+ handler.cause().getMessage());
                 startPromise.fail(handler.cause().getMessage());
             }
-                }
+
+        }
         );
 
 

@@ -33,7 +33,7 @@ public class Bootstrap {
             if (handler.succeeded()) {
                 promise.complete();
             } else {
-                promise.fail(handler.cause());
+                promise.fail(handler.cause().getMessage());
             }
         });
         return promise.future();
