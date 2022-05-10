@@ -21,6 +21,8 @@ public class Constant {
     public static final String CREDENTIAL_DATABASE_CHECK_MULTIPLE ="credentialCheckMultiple";
     public static final String CREDENTIAL_DATABASE_UPDATE="credentialUpdate";
 
+    public static final String CREDENTIAL_DATABASE ="credentialDatabase";
+
    //Discovery Database Address
    public static final String DISCOVERY_DATABASE_CHECK_NAME ="discoveryName";
     public static final String DISCOVERY_DATABASE_CREATE ="discoveryCreate";
@@ -31,6 +33,8 @@ public class Constant {
     public static final String DISCOVERY_DATABASE_CHECK_ID ="discoveryCheckId";
 
     public static final String DISCOVERY_DATABASE_CHECK_MULTIPLE ="discoveryCheckMultiple";
+
+    public static final String DISCOVERY_DATABASE ="discoveryDatabase";
 
 
 
@@ -53,6 +57,7 @@ public class Constant {
     public static  final String COMMUNITY = "community";
     public static final String PROTOCOl ="protocol";
     public static final String VERSION ="version";
+    public static final String EXIST = "exist";
 
 
     //Discovery Json
@@ -66,6 +71,7 @@ public class Constant {
 
     // Constant Messages
 
+    public static final String METHOD ="method";
     public static final String SUCCESS ="success" ;
     public static final String FAIL ="fail" ;
     public static  final String MESSAGE ="message";

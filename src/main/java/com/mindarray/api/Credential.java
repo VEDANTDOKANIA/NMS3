@@ -23,126 +23,131 @@ public class Credential {
         router.route().setName("get").method(HttpMethod.GET).path(CREDENTIAL_ENDPOINT +"/:id/").handler(this::validate).handler(this::getById);
     }
 
-
-
-
     private void validate(RoutingContext context) {
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
+        HttpServerResponse response = context.response();
         //trim data
-        if(!(context.currentRoute().getName().equals("get"))){
-            var credentials = context.getBodyAsJson();
-            credentials.stream().forEach(value->{
-                if(credentials.getValue(value.getKey()) instanceof String) {
-                    credentials.put(value.getKey(), credentials.getString(value.getKey()).trim());
-                } });
-            context.setBody(credentials.toBuffer());
-        }
-
-
-        switch (context.currentRoute().getName()){
-            case "create" -> {
-                //Check for protocol
-                if(context.getBodyAsJson().containsKey("protocol")){
-                    if(context.getBodyAsJson().getString("protocol").equals("ssh") || context.getBodyAsJson().getString("protocol").equals("powershell")){
-                        if(!(context.getBodyAsJson().containsKey("username"))){
-                            error.add("Username not provided");
-                        } else if (!(context.getBodyAsJson().containsKey("password"))) {
-                            error.add("Password not provided");
-                        }
-                    }else if(context.getBodyAsJson().getString("protocol").equals("powershell")){
-                        if(!(context.getBodyAsJson().containsKey("community"))){
-                            error.add("Community not provided");
-                        } else if (!(context.getBodyAsJson().containsKey("version"))) {
-                            error.add("Version not provided");
-                        }
-                    }else{
-                        error.add("Wrong protocol selected");
-                    }
-                }
-                //Unique Credential Name
-                eventBus.<JsonObject>request(CREDENTIAL_DATABASE_CHECK_NAME,context.getBodyAsJson(), handler ->{
-                    if(handler.succeeded() || handler.result().body() != null){
-                        if(handler.result().body().getString(STATUS).equals(FAIL)){
-                            error.add(handler.result().body().getString(ERROR));
-                        }
-                        if(error.isEmpty()){
-                            context.next();
-                        }else{
-                            HttpServerResponse response = context.response();
-                            response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                            response.end(new JsonObject().put("message",error).put(STATUS,FAIL).encodePrettily());
-                        }
-                    }else{
-                        HttpServerResponse response = context.response();
-                        response.setStatusCode(500).putHeader("content-type", HEADER_TYPE);
-                        response.end(new JsonObject().put("message","Internal Server Error Occurred").encodePrettily());
-
+        try {
+            if (!(context.currentRoute().getName().equals("get"))) {
+                var credentials = context.getBodyAsJson();
+                credentials.stream().forEach(value -> {
+                    if (credentials.getValue(value.getKey()) instanceof String) {
+                        credentials.put(value.getKey(), credentials.getString(value.getKey()).trim());
                     }
                 });
+                context.setBody(credentials.toBuffer());
             }
-            case "delete" ->{
-                if(context.getBodyAsJson().containsKey(CREDENTIAL_NAME) && context.getBodyAsJson().getString(CREDENTIAL_NAME)!= null){
-                }else{                   context.next();
-
-                    HttpServerResponse response = context.response();
-                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                    response.end(new JsonObject().put("message","Unable to find credential name").put(STATUS,FAIL).encodePrettily());
-                }
-            }
-            case "update" ->{
-                var response = context.response();
-                if((!(context.getBodyAsJson().containsKey(CREDENTIAL_ID))) || context.getBodyAsJson().getString(CREDENTIAL_ID).equals(null) ){
-                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                    response.end(new JsonObject().put(MESSAGE,"id is null").put(STATUS,FAIL).encodePrettily());
-                }else{
-                    eventBus.<JsonObject>request(CREDENTIAL_DATABASE_CHECK_MULTIPLE,context.getBodyAsJson(),handler->{
-                        if(handler.result().body().getString(STATUS).equals(SUCCESS)){
-                            context.next();
-                        }else{
-                            response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                            response.end(new JsonObject().put(ERROR,handler.result().body().getValue(ERROR)).put(STATUS,FAIL).encodePrettily());
-
+            switch (context.currentRoute().getName()) {
+                case "create" -> {
+                    //Check for protocol
+                    if (context.getBodyAsJson().containsKey("protocol")) {
+                        if (context.getBodyAsJson().getString("protocol").equals("ssh") || context.getBodyAsJson().getString("protocol").equals("powershell")) {
+                            if (!(context.getBodyAsJson().containsKey("username"))) {
+                                error.add("Username not provided");
+                            } else if (!(context.getBodyAsJson().containsKey("password"))) {
+                                error.add("Password not provided");
+                            }
+                        } else if (context.getBodyAsJson().getString("protocol").equals("snmp")) {
+                            if (!(context.getBodyAsJson().containsKey("community"))) {
+                                error.add("Community not provided");
+                            } else if (!(context.getBodyAsJson().containsKey("version"))) {
+                                error.add("Version not provided");
+                            }
+                        } else {
+                            error.add("Wrong protocol selected");
                         }
-                    });
-                }
-            }
-            case "get" ->{
-                HttpServerResponse response = context.response();
-                if(context.pathParam("id")==null){
-                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                    response.end(new JsonObject().put(MESSAGE,"id is null").put(STATUS,FAIL).encodePrettily());
-                }else{
-                    eventBus.<JsonObject>request(CREDENTIAL_DATABASE_CHECK_ID,context.pathParam("id"),handler ->{
-                        if(handler.succeeded() || handler.result().body() != null){
-                            if(handler.result().body().getString(STATUS).equals(FAIL)){
+                    }
+                    //Unique Credential Name
+                    eventBus.<JsonObject>request(CREDENTIAL_DATABASE, context.getBodyAsJson().put(METHOD, CREDENTIAL_DATABASE_CHECK_NAME), handler -> {
+                        if (handler.succeeded() || handler.result().body() != null) {
+                            if (handler.result().body().getString(STATUS).equals(FAIL)) {
                                 error.add(handler.result().body().getString(ERROR));
                             }
-                            if(error.isEmpty()){
+                            if (error.isEmpty()) {
                                 context.next();
-                            }else{
-                                response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
-                                response.end(new JsonObject().put(MESSAGE,error).put(STATUS,FAIL).encodePrettily());
+                            } else {
+                                response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                                response.end(new JsonObject().put("message", error).put(STATUS, FAIL).encodePrettily());
                             }
-                        }else{
-
+                        } else {
                             response.setStatusCode(500).putHeader("content-type", HEADER_TYPE);
-                            response.end(new JsonObject().put("message","Internal Server Error Occurred").encodePrettily());
+                            response.end(new JsonObject().put("message", "Internal Server Error Occurred").encodePrettily());
 
                         }
                     });
                 }
+                case "delete" -> {
+                    if (context.getBodyAsJson().containsKey(CREDENTIAL_ID) && context.getBodyAsJson().getString(CREDENTIAL_ID) != null) {
+                        eventBus.<JsonObject>request(CREDENTIAL_DATABASE, context.getBodyAsJson().put(METHOD, CREDENTIAL_DATABASE_CHECK_ID), handler -> {
+                            if (handler.succeeded() && handler.result().body() != null) {
+                                if (handler.result().body().getString(STATUS).equals(SUCCESS)) {
+                                    context.next();
+                                } else {
+                                    response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                                    response.end(new JsonObject().put("message", handler.result().body().getString(ERROR)).put(STATUS, FAIL).encodePrettily());
+                                }
+
+                            } else {
+                                response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                                response.end(new JsonObject().put("message", handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
+                            }
+                        });
+                    } else {
+                        response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                        response.end(new JsonObject().put("message", "id is null").put(STATUS, FAIL).encodePrettily());
+                    }
+                }
+                case "update" -> {
+                    if ((!(context.getBodyAsJson().containsKey(CREDENTIAL_ID))) || context.getBodyAsJson().getString(CREDENTIAL_ID) == null) {
+                        response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                        response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
+                    } else {
+                        eventBus.<JsonObject>request(CREDENTIAL_DATABASE, context.getBodyAsJson().put(METHOD, CREDENTIAL_DATABASE_CHECK_MULTIPLE), handler -> {
+                            if (handler.succeeded()) {
+                                context.next();
+                            } else {
+                                response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                                response.end(new JsonObject().put(ERROR, handler.result().body().getValue(ERROR)).put(STATUS, FAIL).encodePrettily());
+                            }
+                        });
+                    }
+                }
+                case "get" -> {
+                    if (context.pathParam("id") == null) {
+                        response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                        response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
+                    } else {
+                        eventBus.<JsonObject>request(CREDENTIAL_DATABASE, new JsonObject().put(CREDENTIAL_ID, (context.pathParam("id"))).put(METHOD, CREDENTIAL_DATABASE_CHECK_ID), handler -> {
+                            if (handler.succeeded() || handler.result().body() != null) {
+                                if (handler.result().body().getString(STATUS).equals(FAIL)) {
+                                    error.add(handler.result().body().getString(ERROR));
+                                }
+                                if (error.isEmpty()) {
+                                    context.next();
+                                } else {
+                                    response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
+                                    response.end(new JsonObject().put(MESSAGE, error).put(STATUS, FAIL).encodePrettily());
+                                }
+                            } else {
+                                response.setStatusCode(500).putHeader("content-type", HEADER_TYPE);
+                                response.end(new JsonObject().put("message", "Internal Server Error Occurred").encodePrettily());
+                            }
+                        });
+                    }
 
 
-
+                }
             }
+        }catch (Exception e){
+            response.setStatusCode(400).putHeader("content-type",HEADER_TYPE);
+            response.end(new JsonObject().put(STATUS,FAIL).put(MESSAGE,"Wrong Json Format").put(ERROR,e.getCause().getMessage()).encodePrettily());
         }
-
     }
     private void delete(RoutingContext context) {
         HttpServerResponse response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(CREDENTIAL_DATABASE_DELETE,context.getBodyAsJson(),handler ->{
+        eventBus.<JsonObject>request(CREDENTIAL_DATABASE,context.getBodyAsJson().put(METHOD,CREDENTIAL_DATABASE_DELETE),handler ->{
             if(handler.succeeded()){
                if(handler.result().body().getString(STATUS).equals(SUCCESS)){
                    response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
@@ -159,7 +164,7 @@ public class Credential {
     private void update(RoutingContext context) {
         var response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(CREDENTIAL_DATABASE_UPDATE,context.getBodyAsJson(),handler ->{
+        eventBus.<JsonObject>request(CREDENTIAL_DATABASE,context.getBodyAsJson().put(METHOD,CREDENTIAL_DATABASE_UPDATE),handler ->{
             if(handler.succeeded()){
                 if(handler.result().body().getString(STATUS).equals(SUCCESS)){
                     response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
@@ -174,11 +179,10 @@ public class Credential {
     private void create(RoutingContext context) {
        var eventBus = Bootstrap.vertx.eventBus();
        var response = context.response();
-
-       eventBus.<JsonObject>request(CREDENTIAL_DATABASE_CREATE,context.getBodyAsJson(),handler ->{
+       eventBus.<JsonObject>request(CREDENTIAL_DATABASE,context.getBodyAsJson().put(METHOD,CREDENTIAL_DATABASE_CREATE),handler ->{
            if(handler.succeeded()){
                if(handler.result().body().getString(STATUS).equals(FAIL)){
-                   response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
+                   response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
                    response.end(new JsonObject().put("message",handler.result().body().getValue(ERROR)).put(STATUS,FAIL).encodePrettily());
                }else{
                    response.setStatusCode(200).putHeader("content-type",HEADER_TYPE);
@@ -195,16 +199,15 @@ public class Credential {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
         String msg = "all";
-        eventBus.<JsonObject>request(CREDENTIAL_DATABASE_GET,msg,handler ->{
+        eventBus.<JsonObject>request(CREDENTIAL_DATABASE,new JsonObject().put(METHOD,CREDENTIAL_DATABASE_GET).put("message",msg),handler ->{
             if(handler.succeeded() && handler.result().body() != null){
                 if(handler.result().body().getString(STATUS).equals(SUCCESS)){
                     response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
                 }else{
-                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
+                    response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
                 }
-
             }else{
                 response.setStatusCode(500).putHeader("content-type", HEADER_TYPE);
                 response.end(new JsonObject().put("message","Internal Server Error Occurred").encodePrettily());
@@ -214,24 +217,21 @@ public class Credential {
     private void getById(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
-        String msg = context.pathParam("id");
-
-        eventBus.<JsonObject>request(CREDENTIAL_DATABASE_GET_ID,msg,handler ->{
+        String id = context.pathParam("id");
+        System.out.println(id);
+        eventBus.<JsonObject>request(CREDENTIAL_DATABASE,new JsonObject().put(METHOD,CREDENTIAL_DATABASE_GET_ID).put(CREDENTIAL_ID,id),handler ->{
             if(handler.succeeded() && handler.result().body() != null){
                 if(handler.result().body().getString(STATUS).equals(SUCCESS)){
                     response.setStatusCode(200).putHeader("content-type", HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
                 }else{
-                    response.setStatusCode(401).putHeader("content-type", HEADER_TYPE);
+                    response.setStatusCode(400).putHeader("content-type", HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
                 }
             }else{
                 response.setStatusCode(500).putHeader("content-type", HEADER_TYPE);
-                response.end(new JsonObject().put("message","Internal Server Error Occurred").encodePrettily());
+                response.end(new JsonObject().put("message","Internal Server Error Occurred by me").encodePrettily());
             }
         });
-
     }
-
-
 }
