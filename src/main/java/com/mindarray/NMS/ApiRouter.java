@@ -1,6 +1,7 @@
 package com.mindarray.NMS;
 import com.mindarray.api.Credential;
 import com.mindarray.api.Discovery;
+import com.mindarray.api.Monitor;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
@@ -21,6 +22,8 @@ public class ApiRouter extends AbstractVerticle {
         discovery.init(router);
         var credential = new Credential();
         credential.init(router);
+        var monitor = new Monitor();
+        monitor.init(router);
         vertx.createHttpServer().requestHandler(mainRouter).listen(5557).onComplete( handler ->{
             if(handler.succeeded()){
                 LOGGER.info("HTTP server started");

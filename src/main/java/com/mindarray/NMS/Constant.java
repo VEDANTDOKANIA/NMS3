@@ -6,11 +6,13 @@ public class Constant {
     public static final String SELECT = "Select column from table where condition";
     public static final String INSERT = "insert into table columns data ;";
     //Event Bus Constants
+    public static final String MONITOR_ENDPOINT ="/Monitor" ;
     public static final String DISCOVERY_ENDPOINT = "/Discovery";
     public static final String CREDENTIAL_ENDPOINT = "/Credential";
     public static final String HEADER_TYPE = "application/json";
 
     //Credential Database Address
+   public static final String PROVISION ="provision";
     public static final String DATABASE_CREATE = "create";
     public static final String DATABASE_DELETE = "delete";
     public static final String DATABASE_GET = "get";
@@ -30,15 +32,13 @@ public class Constant {
 
 
     public static final String CONTENT_TYPE ="content-type";
-    public static final String TABLE = "table";
-    public static final String DISCOVERY_TABLE ="discovery";
-    public static final String CREDENTIAL_TABLE ="credential";
+
 
     // Json constants
-    public static final String IP_ADDRESS = "ip.address";
+    public static final String IP = "ip";
     public static final String METRIC_GROUP = "metric.group";
     public static final String PORT = "port";
-    public static final String METRIC_TYPE = "metric.type";
+    public static final String TYPE = "type";
 
 
     //Credential JSON
@@ -63,6 +63,7 @@ public class Constant {
 
     // Constant Messages
 
+    public static final String RESULT ="result";
     public static final String METHOD = "method";
     public static final String SUCCESS = "success";
     public static final String FAIL = "fail";
@@ -70,4 +71,12 @@ public class Constant {
     public static final String STATUS = "status";
     public static final String ERROR = "error";
 
+
+    //Constant Table
+    public static final String TABLE = "table";
+    public static final String DISCOVERY_TABLE ="discovery";
+    public static final String CREDENTIAL_TABLE ="credential";
+
+    public static final String MONITOR_TABLE ="monitor";
+    public static final String METRIC_TABLE ="metric";
 }

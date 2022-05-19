@@ -1,7 +1,5 @@
 package com.mindarray.NMS;
 
-
-
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -17,6 +15,7 @@ import java.sql.DriverManager;
 
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.stream.Collectors;
 
 import static com.mindarray.NMS.Constant.*;
 
@@ -27,7 +26,7 @@ public class DatabaseEngine extends AbstractVerticle {
     public void start(Promise<Void> startPromise) throws Exception {
         var eventBus = vertx.eventBus();
         eventBus.<JsonObject>localConsumer(DATABASE, handler -> {
-            switch (handler.body().getString("method")) {
+            switch (handler.body().getString(METHOD)) {
                 case DATABASE_CREATE -> {
                     Future<JsonObject> result = null;
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
@@ -45,10 +44,10 @@ public class DatabaseEngine extends AbstractVerticle {
                 case DATABASE_DELETE -> {
                     Future<JsonObject> result = null;
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
-                        if (handler.body().getString(TABLE).equals("credential")) {
-                            result = delete("credential", "credential_id", handler.body().getString(CREDENTIAL_ID));
+                        if (handler.body().getString(TABLE).equals(CREDENTIAL_TABLE)) {
+                            result = delete(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_ID));
                         } else {
-                            result = delete("discovery", "discovery_id", handler.body().getString(DISCOVERY_ID));
+                            result = delete(DISCOVERY_TABLE, "discovery_id", handler.body().getString(DISCOVERY_ID));
                         }
                     }
                     result.onComplete(completeHandler -> {
@@ -111,8 +110,8 @@ public class DatabaseEngine extends AbstractVerticle {
 
                 }
                 case CREDENTIAL_DATABASE_CHECK_ID -> {
-                    var checkId = check("credential", "credential_id", handler.body().getString(CREDENTIAL_ID));
-                    var checkProfile = check("discovery", "credential_profile", handler.body().getString(CREDENTIAL_ID));
+                    var checkId = check(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_ID));
+                    var checkProfile = check(DISCOVERY_TABLE, "credential_profile", handler.body().getString(CREDENTIAL_ID));
                     CompositeFuture.join(checkId, checkProfile).onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
                             if (checkProfile.succeeded()) {
@@ -131,8 +130,8 @@ public class DatabaseEngine extends AbstractVerticle {
 
                 }
                 case DISCOVERY_DATABASE_CHECK_NAME -> {
-                    var name = check("discovery", "discovery_name", handler.body().getString(DISCOVERY_NAME));
-                    var profile = check("credential", "credential_id", handler.body().getString(CREDENTIAL_PROFILE));
+                    var name = check(DISCOVERY_TABLE, "discovery_name", handler.body().getString(DISCOVERY_NAME));
+                    var profile = check(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_PROFILE));
                     CompositeFuture.all(name, profile).onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
                             handler.reply(handler.body().put(STATUS, SUCCESS));
@@ -145,14 +144,14 @@ public class DatabaseEngine extends AbstractVerticle {
                     Future<JsonObject> nameCheck;
                     var futures = new ArrayList<Future>();
                     var errors = new ArrayList<String>();
-                    var idCheck = check("discovery", "discovery_id", handler.body().getString(DISCOVERY_ID));
+                    var idCheck = check(DISCOVERY_TABLE, "discovery_id", handler.body().getString(DISCOVERY_ID));
                     futures.add(idCheck);
                     if (handler.body().containsKey(DISCOVERY_NAME)) {
-                        nameCheck = check("discovery", "discovery_name", handler.body().getString(DISCOVERY_NAME));
+                        nameCheck = check(DISCOVERY_TABLE, "discovery_name", handler.body().getString(DISCOVERY_NAME));
                         futures.add(nameCheck);
                     }
                     if (handler.body().containsKey(CREDENTIAL_PROFILE)) {
-                        var profileCheck = check("credential", "credential_id", handler.body().getString(CREDENTIAL_PROFILE));
+                        var profileCheck = check(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_PROFILE));
                         futures.add(profileCheck);
                     }
                     CompositeFuture.all(futures).onComplete(future -> {
@@ -188,6 +187,56 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
                 default -> {
                     LOGGER.error("Error occurred :{}","No matching method found");
+                }
+            }
+        });
+        eventBus.<JsonObject>localConsumer(PROVISION,handler ->{
+            switch (handler.body().getString(METHOD)){
+
+                case "doProvision" ->{
+                    Promise<JsonArray> promise = Promise.promise();
+                    Future<JsonArray> future = promise.future();
+                    var futures = new ArrayList<Future>();
+                    var errors = new ArrayList<String>();
+
+
+
+                    getQuery(handler.body().getString("query")).compose(handler1 -> check(MONITOR_TABLE,IP,handler.body().getString(IP)))
+                          .compose(handler1 ->create(MONITOR_TABLE, new JsonObject().put(TYPE,handler.body().getString(TYPE)).
+                                     put(PORT,handler.body().getInteger(PORT)).put(IP,handler.body().getString(IP)))).
+                          onComplete(handler1 ->{
+                         if(handler1.succeeded()){
+                             var metric = new JsonObject().put("monitor.id",handler1.result().getString("id")).
+                                     put(CREDENTIAL_PROFILE,handler.body().getString(CREDENTIAL_PROFILE));
+
+                             if(handler.body().containsKey("objects")){
+                            var object = handler.body().getJsonArray("objects").stream().map(JsonObject::mapFrom).filter(value ->{
+                                if(value.getString("Interface.Operational.Status").equals("Up")){
+                                    return true;
+                                }else{
+                                    return false;
+                                }
+                            }).collect(Collectors.toList());
+
+                                 metric.put("objects",object);
+                             }
+                             Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value ->{
+                                 futures.add(create(METRIC_TABLE,metric.mergeIn(value)));
+                             });
+                             CompositeFuture.join(futures).onComplete( completeHandler ->{
+                                 if(completeHandler.succeeded()){
+                                     handler.reply( new JsonObject().put(MESSAGE,"your unique id is"+metric.getString("monitor.id")));
+                                 }else{
+                                     errors.add(completeHandler.cause().getMessage());
+                                 }
+                             });
+                         }
+                         else{
+                             errors.add(handler1.cause().getMessage());
+                             handler.fail(-1,errors.toString());
+                         }
+                     });
+
                 }
             }
         });
@@ -227,11 +276,12 @@ public class DatabaseEngine extends AbstractVerticle {
                     var query = "select exists(select *  from " + table + " where " + column + "=\"" + data + "\");";
                     var resultSet = statement.executeQuery(query);
                     while (resultSet.next()) {
-                        if (column.equals(table + "_" + "name")) {
+                        if (column.equals(table + "_" + "name") || column.equals(IP)) {
                             if (resultSet.getInt(1) == 1) {
                                 errors.add(column + " is not unique");
                             }
-                        } else {
+                        }
+                        else  {
                             if (resultSet.getInt(1) == 0) {
                                 errors.add(table + "." + column + " does not exists in table ");
                             }
@@ -349,7 +399,7 @@ public class DatabaseEngine extends AbstractVerticle {
                 handler.complete(id);
             }).onComplete(completeHandler -> {
                 if (errors.isEmpty()) {
-                    promise.complete(credential.put(MESSAGE, "Your unique id is " + completeHandler.result()));
+                    promise.complete(credential.put(MESSAGE, "Your unique id is " + completeHandler.result()).put("id",completeHandler.result()));
                 } else {
                     promise.fail(String.valueOf(errors));
                 }
@@ -404,7 +454,7 @@ public class DatabaseEngine extends AbstractVerticle {
 
         }).onComplete(completeHandler -> {
             if (error.isEmpty()) {
-                resultAll.put("result", completeHandler.result());
+                resultAll.put(RESULT, completeHandler.result());
                 resultAll.put(STATUS, SUCCESS);
                 promise.complete(resultAll);
             } else {
@@ -427,7 +477,7 @@ public class DatabaseEngine extends AbstractVerticle {
                 var rsmd = resultSet.getMetaData();
                 while (resultSet.next()) {
                     var data = new JsonObject();
-                    for (int i = 1; i < rsmd.getColumnCount(); i++) {
+                    for (int i = 1; i <=rsmd.getColumnCount(); i++) {
                         var column = rsmd.getColumnName(i);
                         if (column.contains("_")) {
                             column = column.replace("_", ".");
@@ -446,10 +496,9 @@ public class DatabaseEngine extends AbstractVerticle {
                 error.add(exception.getCause().getMessage());
             }
             handler.complete(result);
-
         }).onComplete(completeHandler -> {
             if (error.isEmpty()) {
-                resultAll.put("result", completeHandler.result());
+                resultAll.put(RESULT, completeHandler.result());
                 resultAll.put(STATUS, SUCCESS);
                 promise.complete(resultAll);
             } else {
@@ -482,7 +531,7 @@ public class DatabaseEngine extends AbstractVerticle {
 
         }).onComplete(completeHandler -> {
             if (error.isEmpty()) {
-                resultAll.put("result", completeHandler.result());
+                resultAll.put(RESULT, completeHandler.result());
                 resultAll.put(STATUS, SUCCESS);
                 promise.complete(resultAll);
             } else {

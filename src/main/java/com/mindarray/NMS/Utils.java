@@ -4,6 +4,7 @@ import com.mindarray.api.Discovery;
 import com.zaxxer.nuprocess.NuProcessBuilder;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,7 @@ public class Utils {
             handler.onStart(process);
             try {
                 process.waitFor(4000, TimeUnit.MILLISECONDS);
-            }catch (InterruptedException exception){
+               }catch (InterruptedException exception){
                 errors.add(exception.getCause().getMessage());
                 Thread.currentThread().interrupt();
             }
@@ -84,10 +85,35 @@ public class Utils {
             }
         }
         if(errors.isEmpty()){
-            promise.complete(credential.put("result",output));
+            promise.complete(credential.put(RESULT,output));
         }else{
             promise.fail(errors.toString());
         }
         return promise.future();
+    }
+
+    public static JsonArray metricGroup(String type){
+        var metric = new JsonArray();
+        switch (type){
+            case "linux" ->{
+                metric.add(new JsonObject().put("metric_group","Cpu").put("time",5000));
+                metric.add(new JsonObject().put("metric_group","Disk").put("time",6000));
+                metric.add(new JsonObject().put("metric_group","Memory").put("time",8000));
+                metric.add(new JsonObject().put("metric_group","Process").put("time",5000));
+                metric.add(new JsonObject().put("metric_group","System").put("time",9000));
+            }
+            case "windows" ->{
+                metric.add(new JsonObject().put("metric_group","Cpu").put("time",8000));
+                metric.add(new JsonObject().put("metric_group","Disk").put("time",10000));
+                metric.add(new JsonObject().put("metric_group","Memory").put("time",11000));
+                metric.add(new JsonObject().put("metric_group","Process").put("time",8000));
+                metric.add(new JsonObject().put("metric_group","System").put("time",12000));
+            }
+            case "snmp" ->{
+               metric.add(new JsonObject().put("metric_group","System").put("time",8000));
+               metric.add(new JsonObject().put("metric_group","Interface").put("time",5000));
+           }
+        }
+        return metric;
     }
 }

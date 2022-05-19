@@ -20,14 +20,13 @@ public class Discovery {
     private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
     public void init(Router router) {
-        router.route().setName("create").method(HttpMethod.POST).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::create);
-        router.route().setName("update").method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::update);
-        router.route().setName("delete").method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT + "/:id/").handler(this::validate).handler(this::delete);
+        router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::create);
+        router.route().method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::update);
+        router.route().method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT + "/:id/").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT).handler(this::get);
-        router.route().setName("get").method(HttpMethod.GET).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::getById);
-        router.route().setName("get").method(HttpMethod.POST).path(DISCOVERY_ENDPOINT +"/:id/run").handler(this::runDiscovery);
+        router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::getById);
+        router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT + "/:id/run").handler(this::runDiscovery);
     }
-
 
 
     private void validate(RoutingContext context) {
@@ -35,7 +34,7 @@ public class Discovery {
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         try {
-            if ((!(context.currentRoute().getName().equals("get"))) && (!(context.currentRoute().getName().equals("delete")))) {
+            if ((!(context.request().method().toString().equals("GET"))) && (!(context.request().method().toString().equals("DELETE")))) {
                 var credentials = context.getBodyAsJson();
                 credentials.stream().forEach(value -> {
                     if (credentials.getValue(value.getKey()) instanceof String) {
@@ -44,8 +43,8 @@ public class Discovery {
                 });
                 context.setBody(credentials.toBuffer());
             }
-            switch (context.currentRoute().getName()) {
-                case "create" -> {
+            switch (context.request().method().toString()) {
+                case "POST" -> {
                     if (!(context.getBodyAsJson().containsKey(DISCOVERY_NAME)) || context.getBodyAsJson().getString(DISCOVERY_NAME) == null) {
                         error.add("Discovery name is null");
                     }
@@ -78,12 +77,12 @@ public class Discovery {
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(ERROR, error).put(STATUS, FAIL).encodePrettily());
-                        LOGGER.error("An error occurred {}",error);
+                        LOGGER.error("An error occurred {}", error);
                     }
                 }
-                case "delete" -> {
+                case "DELETE" -> {
                     if (context.pathParam("id") != null) {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE,"discovery"), handler -> {
+                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, DISCOVERY_TABLE), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
                             } else {
@@ -98,13 +97,13 @@ public class Discovery {
                         LOGGER.error("id is null");
                     }
                 }
-                case "get" ->    {
+                case "GET" -> {
                     if (context.pathParam("id") == null) {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
                         LOGGER.error("id is null");
                     } else {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE,"discovery"), handler -> {
+                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, DISCOVERY_TABLE), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
                             } else {
@@ -115,7 +114,7 @@ public class Discovery {
                         });
                     }
                 }
-                case "update" -> {
+                case "PUT" -> {
                     if (!(context.getBodyAsJson().containsKey(DISCOVERY_ID)) || context.getBodyAsJson().getString(DISCOVERY_ID) == null) {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Id is null").encodePrettily());
@@ -132,7 +131,6 @@ public class Discovery {
                         });
                     }
                 }
-                case "runDiscovery" ->{}
                 default -> {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "No matching route").encodePrettily());
@@ -149,7 +147,7 @@ public class Discovery {
     private void create(RoutingContext context) {
         var response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CREATE).put(TABLE,"discovery"), handler -> {
+        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CREATE).put(TABLE, DISCOVERY_TABLE), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, handler.result().body().getString(MESSAGE)).encodePrettily());
@@ -164,7 +162,7 @@ public class Discovery {
     private void update(RoutingContext context) {
         var response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE,"discovery"), handler -> {
+        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE, DISCOVERY_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
@@ -177,9 +175,9 @@ public class Discovery {
     }
 
     private void delete(RoutingContext context) {
-        HttpServerResponse response = context.response();
+        var response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, Constant.DATABASE_DELETE).put(TABLE,"discovery"), handler -> {
+        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_DELETE).put(TABLE, DISCOVERY_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
@@ -194,11 +192,10 @@ public class Discovery {
     private void get(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
-        var msg = "all";
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(MESSAGE, msg).put(METHOD, Constant.DATABASE_GET).put(TABLE,"discovery").put("condition",msg), handler -> {
+        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, Constant.DATABASE_GET).put(TABLE, DISCOVERY_TABLE).put("condition", "all"), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, SUCCESS).put("result", handler.result().body().getJsonArray("result")).encodePrettily());
+                response.end(new JsonObject().put(STATUS, SUCCESS).put(RESULT, handler.result().body().getJsonArray(RESULT)).encodePrettily());
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
@@ -212,78 +209,73 @@ public class Discovery {
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
         var id = context.pathParam("id");
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, Constant.DATABASE_GET).put(TABLE,"discovery").put("condition","individual").put("column","discovery_id").put("value",id)
+        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put(TABLE, DISCOVERY_TABLE).put("condition", "individual").put("column", "discovery_id").put("value", id)
                 , handler -> {
-            if (handler.succeeded() && handler.result().body() != null) {
-                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, SUCCESS).put("result", handler.result().body().getJsonArray("result")).encodePrettily());
-            } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
-            }
-        });
+                    if (handler.succeeded() && handler.result().body() != null) {
+                        response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, SUCCESS).put(RESULT, handler.result().body().getJsonArray(RESULT)).encodePrettily());
+                    } else {
+                        response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                        LOGGER.error(handler.cause().getMessage());
+                    }
+                });
     }
 
     private void runDiscovery(RoutingContext context) {
-   var id = context.pathParam("id");
-   var query = "select discovery_id , ip,type,port,username,password,community,version from credential , discovery where discovery_id = \""+id+"\" and discovery.credential_profile = credential.credential_id;";
+        var id = context.pathParam("id");
+        var query = "select discovery_id , ip,type,port,username,password,community,version from credential , discovery where discovery_id = \"" + id + "\" and discovery.credential_profile = credential.credential_id;";
         var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
-       Promise<JsonObject> promise = Promise.promise();
+        var errors = new ArrayList<String>();
+        Promise<JsonObject> promise = Promise.promise();
         Future<JsonObject> future = promise.future();
-
-        eventBus.<JsonObject>request(DATABASE,new JsonObject().put(METHOD,GET_QUERY).put("query",query),handler ->{
-            if(handler.succeeded()){
-                if(handler.result().body().getJsonArray("result").isEmpty()){
+        Promise<String> promiseQuery = Promise.promise();
+        Future<String> futureQuery = promiseQuery.future();
+        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put("query", query), handler -> {
+            if (handler.succeeded()) {
+                if (handler.result().body().getJsonArray(RESULT).isEmpty()) {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Id does not exist in table").encodePrettily());
                     promise.fail("Id does not exist in table");
-                }else{
-                    promise.complete(handler.result().body().getJsonArray("result").getJsonObject(0).put("category","discovery"));
+                } else {
+                    promise.complete(handler.result().body().getJsonArray(RESULT).getJsonObject(0).put("category", "discovery"));
                 }
-            }else{
+            } else {
                 promise.fail(handler.cause().getMessage());
             }
         });
+        future.onComplete(handler -> {
+            if (handler.succeeded()) {
+                eventBus.<JsonObject>request(RUN_DISCOVERY_DISCOVERY_ENGINE, future.result(), run -> {
+                    if (run.succeeded()) {
+                        promiseQuery.complete("update discovery set discovery_result = " + "'" + run.result().body() + "'" + " where discovery_id =\"" + id + "\";");
+                    } else {
+                        errors.add(run.cause().getMessage());
+                        var updateQuery = "update discovery set discovery_result = " + "'" + new JsonObject().put(STATUS, FAIL).put(ERROR, run.cause().getMessage()) + "'" + " where discovery_id =\"" + id + "\";";
+                        promiseQuery.complete(updateQuery);
 
-        future.onComplete(handler ->{
-            if(handler.succeeded()){
-                eventBus.<JsonObject>request(RUN_DISCOVERY_DISCOVERY_ENGINE,future.result(),run ->{
-                    if(run.succeeded()){
-                        var updateQuery = "update discovery set discovery_result = " +"\'"+ run.result().body()+"\'"+" where discovery_id =\""+id+"\";";
-                        eventBus.<JsonObject>request(DATABASE,new JsonObject().put("query",updateQuery).put(METHOD,EXECUTE_QUERY).put("condition","update"),queryHandler ->{
-                            if(queryHandler.succeeded()){
-                                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "Discovered successfully").encodePrettily());
-                            }else {
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, queryHandler.cause().getMessage()).encodePrettily());
-                                LOGGER.error(handler.cause().getMessage());
-                            }
-                        });
-                    }else {
-                        var errors = new JsonObject().put(STATUS,FAIL).put(ERROR,run.cause().getMessage());
-                        var updateQuery = "update discovery set discovery_result = " +"\'"+ errors+"\'"+" where discovery_id =\""+id+"\";";
-                        eventBus.<JsonObject>request(DATABASE,new JsonObject().put("query",updateQuery).put(METHOD,EXECUTE_QUERY).put("condition","update"),queryHandler ->{
-                            if(queryHandler.succeeded()){
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, run.cause().getMessage()).encodePrettily());
-                            }else {
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, queryHandler.cause().getMessage()).encodePrettily());
-                                LOGGER.error(handler.cause().getMessage());
-                            }
-                        });
                     }
-
                 });
-            }else{
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE,future.cause().getMessage()).encodePrettily());
-                LOGGER.error(future.cause().getMessage());
-
+            } else {
+                errors.add(future.cause().getMessage());
             }
+        });
+        futureQuery.onComplete(handler -> {
+            eventBus.<JsonObject>request(DATABASE, new JsonObject().put("query", handler.result()).put(METHOD, EXECUTE_QUERY).put("condition", "update"), queryHandler -> {
+                if (queryHandler.failed()) {
+                    errors.add(queryHandler.cause().getMessage());
+                } else {
+                    if (errors.isEmpty()) {
+                        response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "Discovered successfully").encodePrettily());
+                    } else {
+                        response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, queryHandler.cause().getMessage()).encodePrettily());
+                        LOGGER.error(handler.cause().getMessage());
+                    }
+                }
+            });
         });
     }
 

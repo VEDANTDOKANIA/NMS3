@@ -26,6 +26,7 @@ public class Bootstrap {
                             }
                         }
                 );
+
     }
     public static Future<Void> start(String verticle) {
         Promise<Void> promise = Promise.promise();

@@ -16,10 +16,10 @@ public class DiscoveryEngine extends AbstractVerticle {
             var discovery = Utils.spwanProcess(handler.body());
             CompositeFuture.all(availability,discovery).onComplete( future->{
                 if(future.succeeded()){
-                    if(discovery.result().getJsonObject("result").getString(STATUS).equals(SUCCESS)){
-                        handler.reply(discovery.result().getJsonObject("result"));
+                    if(discovery.result().getJsonObject(RESULT).getString(STATUS).equals(SUCCESS)){
+                        handler.reply(discovery.result().getJsonObject(RESULT));
                     }else{
-                        handler.fail(-1,discovery.result().getJsonObject("result").getString(ERROR));
+                        handler.fail(-1,discovery.result().getJsonObject(RESULT).getString(ERROR));
                     }
                 }else{
                     handler.fail(-1,future.cause().getMessage());
