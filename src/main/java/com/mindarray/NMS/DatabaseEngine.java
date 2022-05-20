@@ -9,13 +9,9 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.DriverManager;
-
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.stream.Collectors;
 
 import static com.mindarray.NMS.Constant.*;
 
@@ -23,14 +19,14 @@ public class DatabaseEngine extends AbstractVerticle {
     private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseEngine.class);
 
     @Override
-    public void start(Promise<Void> startPromise) throws Exception {
+    public void start(Promise<Void> startPromise) {
         var eventBus = vertx.eventBus();
         eventBus.<JsonObject>localConsumer(DATABASE, handler -> {
             switch (handler.body().getString(METHOD)) {
                 case DATABASE_CREATE -> {
                     Future<JsonObject> result = null;
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
-                        result = create(handler.body().getString(TABLE), handler.body());
+                        result = insert(handler.body().getString(TABLE), handler.body());
                     }
                     result.onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
@@ -58,7 +54,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case DATABASE_GET ->    {
+                case DATABASE_GET -> {
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
                         get(handler.body()).onComplete(completeHandler -> {
                             if (completeHandler.succeeded()) {
@@ -86,7 +82,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case DATABASE_CHECK ->  {
+                case DATABASE_CHECK -> {
                     var table = handler.body().getString(TABLE);
                     handler.body().remove(TABLE);
                     handler.body().remove(METHOD);
@@ -114,20 +110,15 @@ public class DatabaseEngine extends AbstractVerticle {
                     var checkProfile = check(DISCOVERY_TABLE, "credential_profile", handler.body().getString(CREDENTIAL_ID));
                     CompositeFuture.join(checkId, checkProfile).onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
-                            if (checkProfile.succeeded()) {
-                                handler.fail(-1, "Cannot delete because profile belongs to the discovery");
-                            } else {
-                                handler.reply(handler.body());
-                            }
+                            handler.reply(handler.body());
                         } else {
                             if (checkProfile.failed()) {
-                                handler.reply(handler.body());
+                                handler.fail(-1, "cannot delete because profile already exsists in discovery table");
                             } else {
                                 handler.fail(-1, completeHandler.cause().getMessage());
                             }
                         }
                     });
-
                 }
                 case DISCOVERY_DATABASE_CHECK_NAME -> {
                     var name = check(DISCOVERY_TABLE, "discovery_name", handler.body().getString(DISCOVERY_NAME));
@@ -155,88 +146,93 @@ public class DatabaseEngine extends AbstractVerticle {
                         futures.add(profileCheck);
                     }
                     CompositeFuture.all(futures).onComplete(future -> {
-                                if (future.failed()) {
-                                    errors.add(future.cause().getMessage());
-                                }
-                                if (errors.isEmpty()) {
-                                    handler.reply(handler.body().put(STATUS, SUCCESS));
-                                } else {
-                                    handler.fail(-1, errors.toString());
-                                }
-                            }
-                    );
+                        if (future.failed()) {
+                            errors.add(future.cause().getMessage());
+                        }
+                        if (errors.isEmpty()) {
+                            handler.reply(handler.body().put(STATUS, SUCCESS));
+                        } else {
+                            handler.fail(-1, errors.toString());
+                        }
+                    });
                 }
                 case GET_QUERY -> {
-                    getQuery(handler.body().getString("query")).onComplete(completeHandler ->{
-                        if(completeHandler.succeeded()){
+                    getQuery(handler.body().getString(QUERY)).onComplete(completeHandler -> {
+                        if (completeHandler.succeeded()) {
                             handler.reply(completeHandler.result());
-                        }else{
-                            handler.fail(-1,completeHandler.cause().getMessage());
+                        } else {
+                            handler.fail(-1, completeHandler.cause().getMessage());
                         }
 
                     });
                 }
                 case EXECUTE_QUERY -> {
-                    executeQuery(handler.body().getString("query"),handler.body().getString("condition")).onComplete(context ->{
-                        if(context.succeeded()){
+                    executeQuery(handler.body().getString(QUERY), handler.body().getString("condition")).onComplete(context -> {
+                        if (context.succeeded()) {
                             handler.reply(handler.body());
-                        }else{
-                            handler.fail(-1,context.cause().getMessage());
+                        } else {
+                            handler.fail(-1, context.cause().getMessage());
                         }
                     });
                 }
                 default -> {
-                    LOGGER.error("Error occurred :{}","No matching method found");
+                    LOGGER.error("Error occurred :{}", "No matching method found");
                 }
             }
         });
-        eventBus.<JsonObject>localConsumer(PROVISION,handler ->{
-            switch (handler.body().getString(METHOD)){
-
-                case "doProvision" ->{
-                    Promise<JsonArray> promise = Promise.promise();
-                    Future<JsonArray> future = promise.future();
+        eventBus.<JsonObject>localConsumer(PROVISION, handler -> {
+            switch (handler.body().getString(METHOD)) {
+                case "runProvision" -> {
                     var futures = new ArrayList<Future>();
                     var errors = new ArrayList<String>();
+                    getQuery(handler.body().getString(QUERY)).compose(futureResult -> check(MONITOR_TABLE, IP, handler.body().getString(IP))).compose(futureResult -> insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)))).onComplete(futureResult -> {
+                        if (futureResult.succeeded()) {
+                            var metric = new JsonObject().put("monitor.id", futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
+                            if (handler.body().containsKey("objects")) {
+                                var object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
+                                metric.put("objects", object);
+                            }
 
-
-
-                    getQuery(handler.body().getString("query")).compose(handler1 -> check(MONITOR_TABLE,IP,handler.body().getString(IP)))
-                          .compose(handler1 ->create(MONITOR_TABLE, new JsonObject().put(TYPE,handler.body().getString(TYPE)).
-                                     put(PORT,handler.body().getInteger(PORT)).put(IP,handler.body().getString(IP)))).
-                          onComplete(handler1 ->{
-                         if(handler1.succeeded()){
-                             var metric = new JsonObject().put("monitor.id",handler1.result().getString("id")).
-                                     put(CREDENTIAL_PROFILE,handler.body().getString(CREDENTIAL_PROFILE));
-
-                             if(handler.body().containsKey("objects")){
-                            var object = handler.body().getJsonArray("objects").stream().map(JsonObject::mapFrom).filter(value ->{
-                                if(value.getString("Interface.Operational.Status").equals("Up")){
-                                    return true;
-                                }else{
-                                    return false;
+                            Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value -> futures.add(insert(METRIC_TABLE, metric.mergeIn(value))));
+                            CompositeFuture.join(futures).onComplete(completeHandler -> {
+                                if (completeHandler.succeeded()) {
+                                    handler.reply(new JsonObject().put(MESSAGE, "your unique id is " + metric.getString("monitor.id")));
+                                } else {
+                                    errors.add(completeHandler.cause().getMessage());
                                 }
-                            }).collect(Collectors.toList());
-
-                                 metric.put("objects",object);
-                             }
-                             Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value ->{
-                                 futures.add(create(METRIC_TABLE,metric.mergeIn(value)));
-                             });
-                             CompositeFuture.join(futures).onComplete( completeHandler ->{
-                                 if(completeHandler.succeeded()){
-                                     handler.reply( new JsonObject().put(MESSAGE,"your unique id is"+metric.getString("monitor.id")));
-                                 }else{
-                                     errors.add(completeHandler.cause().getMessage());
-                                 }
-                             });
-                         }
-                         else{
-                             errors.add(handler1.cause().getMessage());
-                             handler.fail(-1,errors.toString());
-                         }
-                     });
-
+                            });
+                        } else {
+                            errors.add(futureResult.cause().getMessage());
+                            handler.fail(-1, errors.toString());
+                        }
+                    });
+                }
+                case "check" -> {
+                    check(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).onComplete(result -> {
+                        if (result.succeeded()) {
+                            handler.reply(result.result());
+                        } else {
+                            handler.fail(-1, result.cause().getMessage());
+                        }
+                    });
+                }
+                case "delete" -> {
+                    delete(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).compose(handler1 -> executeQuery(handler.body().getString(QUERY), "delete")).onComplete(handler1 -> {
+                        if (handler1.succeeded()) {
+                            handler.reply(handler1.result());
+                        } else {
+                            handler.fail(-1, handler1.cause().getMessage());
+                        }
+                    });
+                }
+                case "get" -> {
+                    getQuery(handler.body().getString(QUERY)).onComplete(result -> {
+                        if (result.succeeded()) {
+                            handler.reply(result.result());
+                        } else {
+                            handler.fail(-1, result.cause().getMessage());
+                        }
+                    });
                 }
             }
         });
@@ -250,17 +246,27 @@ public class DatabaseEngine extends AbstractVerticle {
             connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/", "vedant.dokania", "Mind@123");
             LOGGER.info("Database Connection Successful");
         } catch (Exception e) {
-            LOGGER.error("Exception Occurred :{}" , e.getMessage());
+            LOGGER.error("Exception Occurred :{}", e.getMessage());
         }
         return connection;
     }
 
-    private String generate() {
-        SecureRandom random = new SecureRandom();
-        Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
-        byte[] buffer = new byte[4];
-        random.nextBytes(buffer);
-        return encoder.encodeToString(buffer);
+    private Future<Integer> getId(String table) {
+        Promise<Integer> promise = Promise.promise();
+        Bootstrap.vertx.executeBlocking(handler -> {
+            try (var connection = connect()) {
+                var statement = connection.createStatement();
+                statement.execute("use nms");
+                var resultSet = statement.executeQuery("select max(" + table + "_id) from " + table + ";");
+                while (resultSet.next()) {
+                    promise.complete(resultSet.getInt(1));
+                }
+            } catch (Exception exception) {
+                promise.fail(exception.getCause().getMessage());
+            }
+            handler.complete();
+        });
+        return promise.future();
     }
 
     private Future<JsonObject> check(String table, String column, String data) {
@@ -276,12 +282,11 @@ public class DatabaseEngine extends AbstractVerticle {
                     var query = "select exists(select *  from " + table + " where " + column + "=\"" + data + "\");";
                     var resultSet = statement.executeQuery(query);
                     while (resultSet.next()) {
-                        if (column.equals(table + "_" + "name") || column.equals(IP)) {
+                        if (column.equals(table + "_" + "name") || column.equals(IP) || column.equals("credential_profile")) {
                             if (resultSet.getInt(1) == 1) {
                                 errors.add(column + " is not unique");
                             }
-                        }
-                        else  {
+                        } else {
                             if (resultSet.getInt(1) == 0) {
                                 errors.add(table + "." + column + " does not exists in table ");
                             }
@@ -315,7 +320,7 @@ public class DatabaseEngine extends AbstractVerticle {
                     var statement = connection.createStatement();
                     statement.execute("use nms");
                     var query = "Delete from " + table + " where " + column + " = " + "\"" + data + "\";";
-                    var flag = statement.execute(query);
+                    statement.execute(query);
                 } catch (Exception exception) {
                     errors.add(exception.getCause().getMessage());
                 }
@@ -350,7 +355,7 @@ public class DatabaseEngine extends AbstractVerticle {
             }
         });
         query.setLength(query.length() - 1);
-        query.append(" where ").append(table).append("_id=\"").append(credential.getString(table+".id")).append("\";");
+        query.append(" where ").append(table).append("_id=\"").append(credential.getString(table + ".id")).append("\";");
         Bootstrap.getVertx().executeBlocking(handler -> {
             try (var connection = connect()) {
                 var statement = connection.createStatement();
@@ -373,7 +378,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
-    private Future<JsonObject> create(String table, JsonObject credential) {
+    private Future<JsonObject> insert(String table, JsonObject credential) {
         credential.remove("method");
         credential.remove(TABLE);
         var errors = new ArrayList<String>();
@@ -381,28 +386,31 @@ public class DatabaseEngine extends AbstractVerticle {
         var query = new StringBuilder();
         var mapper = transform(credential);
         query.append("insert into ").append(table).append(" ( ");
-        query.append(mapper.getString("columns")).append(table + "_" + "id").append(")").append("values (");
+        query.append(mapper.getString("columns")).append(")").append("values (");
         if (credential.isEmpty()) {
             errors.add("Empty Credentials");
             promise.complete(new JsonObject().put(STATUS, FAIL).put(ERROR, errors));
         } else {
             Bootstrap.vertx.executeBlocking(handler -> {
-                String id = generate();
-                query.append(mapper.getString("values")).append("\"").append(id).append("\"").append(");");
+                query.append(mapper.getString("values")).append(");");
                 try (var connection = connect()) {
                     var statement = connection.createStatement();
                     statement.execute("use nms");
+
                     statement.execute(String.valueOf(query));
                 } catch (Exception exception) {
                     errors.add(exception.getCause().getMessage());
                 }
-                handler.complete(id);
+                handler.complete();
             }).onComplete(completeHandler -> {
-                if (errors.isEmpty()) {
-                    promise.complete(credential.put(MESSAGE, "Your unique id is " + completeHandler.result()).put("id",completeHandler.result()));
-                } else {
-                    promise.fail(String.valueOf(errors));
-                }
+                getId(table).onComplete(id -> {
+                    if (errors.isEmpty()) {
+                        promise.complete(credential.put(MESSAGE, "Your unique id is " + id.result()).put("id", id.result()));
+                    } else {
+                        promise.fail(String.valueOf(errors));
+                    }
+                });
+
             });
         }
         return promise.future();
@@ -430,23 +438,28 @@ public class DatabaseEngine extends AbstractVerticle {
                 statement.execute("use nms;");
                 var resultSet = statement.executeQuery(query.toString());
                 var rsmd = resultSet.getMetaData();
-                while (resultSet.next()) {
-                    var data = new JsonObject();
-                    for (int i = 1; i <= rsmd.getColumnCount(); i++) {
-                        var column = rsmd.getColumnName(i);
-                        if (column.contains("_")) {
-                            column = column.replace("_", ".");
-                        }
-                        if (resultSet.getObject(i) != null) {
-                            if (rsmd.getColumnTypeName(i).equals("VARCHAR")) {
-                                data.put(column, resultSet.getString(i));
-                            } else {
-                                data.put(column, resultSet.getObject(i));
+                if (resultSet.next() == false) {
+                    error.add("No data to show");
+                } else {
+                    do {
+                        var data = new JsonObject();
+                        for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                            var column = rsmd.getColumnName(i);
+                            if (column.contains("_")) {
+                                column = column.replace("_", ".");
+                            }
+                            if (resultSet.getObject(i) != null) {
+                                if (rsmd.getColumnTypeName(i).equals("VARCHAR")) {
+                                    data.put(column, resultSet.getString(i));
+                                } else {
+                                    data.put(column, resultSet.getObject(i));
+                                }
                             }
                         }
-                    }
-                    result.add(data);
+                        result.add(data);
+                    } while (resultSet.next());
                 }
+
             } catch (Exception exception) {
                 error.add(exception.getCause().getMessage());
             }
@@ -464,7 +477,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
-    private Future<JsonObject> getQuery(String query){
+    private Future<JsonObject> getQuery(String query) {
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
         var resultAll = new JsonObject();
@@ -475,22 +488,28 @@ public class DatabaseEngine extends AbstractVerticle {
                 statement.execute("use nms;");
                 var resultSet = statement.executeQuery(query);
                 var rsmd = resultSet.getMetaData();
-                while (resultSet.next()) {
-                    var data = new JsonObject();
-                    for (int i = 1; i <=rsmd.getColumnCount(); i++) {
-                        var column = rsmd.getColumnName(i);
-                        if (column.contains("_")) {
-                            column = column.replace("_", ".");
-                        }
-                        if (resultSet.getObject(i) != null) {
-                            if (rsmd.getColumnTypeName(i).equals("VARCHAR")) {
-                                data.put(column, resultSet.getString(i));
-                            } else {
-                                data.put(column, resultSet.getInt(i));
+                if (!resultSet.next()) {
+                    error.add("Wrong id provided or no result to showcase");
+                } else {
+                    do {
+                        var data = new JsonObject();
+                        for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                            var column = rsmd.getColumnName(i);
+                            if (column.contains("_")) {
+                                column = column.replace("_", ".");
+                            }
+                            if (resultSet.getObject(i) != null) {
+                                if (rsmd.getColumnTypeName(i).equals("VARCHAR")) {
+                                    data.put(column, resultSet.getString(i));
+                                } else if (rsmd.getColumnTypeName(i).equals("JSON")) {
+                                    data.put(column, resultSet.getObject(i));
+                                } else {
+                                    data.put(column, resultSet.getInt(i));
+                                }
                             }
                         }
-                    }
-                    result.add(data);
+                        result.add(data);
+                    } while (resultSet.next());
                 }
             } catch (Exception exception) {
                 error.add(exception.getCause().getMessage());
@@ -508,8 +527,8 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
-    private Future<JsonObject> executeQuery(String query,String condition){
-        System.out.println(query);
+    private Future<JsonObject> executeQuery(String query, String condition) {
+
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
         var resultAll = new JsonObject();
@@ -518,9 +537,9 @@ public class DatabaseEngine extends AbstractVerticle {
             try (var connection = connect()) {
                 var statement = connection.createStatement();
                 statement.execute("use nms;");
-                if(condition.equals("update")){
+                if (condition.equals("update")) {
                     statement.executeUpdate(query);
-                }else {
+                } else {
                     statement.execute(query);
                 }
 
@@ -548,19 +567,22 @@ public class DatabaseEngine extends AbstractVerticle {
             if (credentials.getValue(key.getKey()) != null) {
                 if (key.getKey().contains(".")) {
                     column.append(key.getKey().replace(".", "_")).append(",");
-                }else{
+                } else {
                     column.append(key.getKey()).append(",");
                 }
                 var data = credentials.getValue(key.getKey());
                 if (data instanceof String) {
                     value.append("\"").append(data).append("\"").append(",");
+                } else if (data instanceof JsonArray || data instanceof JsonObject) {
+                    value.append("\'").append(data).append("\'").append(",");
                 } else {
                     value.append(data).append(",");
                 }
             }
         });
+        value.setLength(value.length() - 1);
+        column.setLength(column.length() - 1);
         return new JsonObject().put("columns", column).put("values", value);
     }
-
 
 }

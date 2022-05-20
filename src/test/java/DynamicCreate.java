@@ -7,7 +7,7 @@ public class DynamicCreate {
     public static void main(String[] args) {
         var user = new JsonObject();
         user.put("credential.name","vedant");
-        user.put("protocol","ssh");
+       // user.put(PROTOCOL,"ssh");
         user.put("id","abc");
         user.put("username","vedant");
         user.put("password","Mind@123");

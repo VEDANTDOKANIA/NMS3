@@ -42,25 +42,43 @@ public class Credential {
 
             switch (context.request().method().toString()) {
                 case "POST" -> {
-                    if (context.getBodyAsJson().containsKey("protocol")) {
-                        if (context.getBodyAsJson().getString("protocol").equals("ssh") || context.getBodyAsJson().getString("protocol").equals("powershell")) {
+                    if (context.getBodyAsJson().containsKey(PROTOCOl)) {
+                        if (context.getBodyAsJson().getString(PROTOCOl).equals("ssh") || context.getBodyAsJson().getString(PROTOCOl).equals("powershell")) {
                             if (!(context.getBodyAsJson().containsKey("username"))) {
                                 error.add("Username not provided");
-                            } else if (!(context.getBodyAsJson().containsKey("password"))) {
+                            }
+                            if (!(context.getBodyAsJson().containsKey("password"))) {
                                 error.add("Password not provided");
                             }
-                        } else if (context.getBodyAsJson().getString("protocol").equals("snmp")) {
+                            if (context.getBodyAsJson().containsKey(VERSION)) {
+                                error.add("wrong key version in type " + context.getBodyAsJson().getString(TYPE));
+                            }
+                            if (context.getBodyAsJson().containsKey(COMMUNITY)) {
+                                error.add("wrong key community in type " + context.getBodyAsJson().getString(TYPE));
+                            }
+                        }
+                        if (context.getBodyAsJson().getString(PROTOCOl).equals("snmp")) {
                             if (!(context.getBodyAsJson().containsKey("community"))) {
                                 error.add("Community not provided");
-                            } else if (!(context.getBodyAsJson().containsKey("version"))) {
+                            }
+                            if (!(context.getBodyAsJson().containsKey("version"))) {
                                 error.add("Version not provided");
+                            }
+                            if (context.getBodyAsJson().containsKey(USERNAME)) {
+                                error.add("username does not comes in snmp");
+                            }
+                            if (context.getBodyAsJson().containsKey(PASSWORD)) {
+                                error.add("password does not comes in snmp");
                             }
                         } else {
                             error.add("Wrong protocol selected");
                         }
                     }
+                    if (context.getBodyAsJson().containsKey(CREDENTIAL_NAME) && context.getBodyAsJson().getString(CREDENTIAL_NAME) != null) {
+                        error.add("credential name should be provided");
+                    }
                     if (error.isEmpty()) {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD,DATABASE_CHECK).put(TABLE,CREDENTIAL_TABLE).put(CREDENTIAL_NAME,context.getBodyAsJson().getString(CREDENTIAL_NAME)), handler -> {
+                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_CHECK).put(TABLE, CREDENTIAL_TABLE).put(CREDENTIAL_NAME, context.getBodyAsJson().getString(CREDENTIAL_NAME)), handler -> {
                             if (handler.succeeded() && handler.result().body() != null) {
                                 context.next();
                             } else {
@@ -73,7 +91,7 @@ public class Credential {
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(MESSAGE, error).put(STATUS, FAIL).encodePrettily());
-                        LOGGER.error(error.toString());
+                        LOGGER.error("Error occurred{}", error);
                     }
                 }
                 case "DELETE" -> {
@@ -102,12 +120,12 @@ public class Credential {
                         LOGGER.error("id is null");
                     } else {
                         if (context.getBodyAsJson().containsKey(CREDENTIAL_ID)) {
-                            conditions.put(CREDENTIAL_ID,context.getBodyAsJson().getString(CREDENTIAL_ID));
+                            conditions.put(CREDENTIAL_ID, context.getBodyAsJson().getString(CREDENTIAL_ID));
                         }
                         if (context.getBodyAsJson().containsKey(CREDENTIAL_NAME)) {
-                            conditions.put(CREDENTIAL_NAME,context.getBodyAsJson().getString(CREDENTIAL_NAME));
+                            conditions.put(CREDENTIAL_NAME, context.getBodyAsJson().getString(CREDENTIAL_NAME));
                         }
-                        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CHECK).put(TABLE,CREDENTIAL_TABLE).mergeIn(conditions), handler -> {
+                        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CHECK).put(TABLE, CREDENTIAL_TABLE).mergeIn(conditions), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
                             } else {
@@ -133,10 +151,12 @@ public class Credential {
                             }
                         });
                     }
+
+
                 }
+
                 default -> {
-                    System.out.println(context.request().method().toString());
-                    //Response ??
+                    LOGGER.error("Error occurred {} ", context.request().method());
                 }
             }
         } catch (Exception exception) {
@@ -147,9 +167,8 @@ public class Credential {
     }
 
     private void create(RoutingContext context) {
-        var eventBus = Bootstrap.vertx.eventBus();
         var response = context.response();
-        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CREATE).put(TABLE,CREDENTIAL_TABLE), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CREATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, handler.result().body().getString(MESSAGE)).encodePrettily());
@@ -161,10 +180,10 @@ public class Credential {
         });
 
     }
+
     private void update(RoutingContext context) {
         var response = context.response();
-        var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE,CREDENTIAL_TABLE), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
@@ -175,10 +194,10 @@ public class Credential {
             }
         });
     }
+
     private void delete(RoutingContext context) {
         var response = context.response();
-        var eventBus = Bootstrap.getVertx().eventBus();
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_DELETE).put(CREDENTIAL_ID, context.pathParam("id")).put(TABLE,CREDENTIAL_TABLE), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_DELETE).put(CREDENTIAL_ID, context.pathParam("id")).put(TABLE, CREDENTIAL_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
@@ -190,10 +209,10 @@ public class Credential {
 
         });
     }
+
     private void get(RoutingContext context) {
-        var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put(TABLE,CREDENTIAL_TABLE).put("condition","all"), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put(TABLE, CREDENTIAL_TABLE).put("condition", "all"), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());
@@ -204,11 +223,10 @@ public class Credential {
             }
         });
     }
+
     private void getById(RoutingContext context) {
-        var eventBus = Bootstrap.getVertx().eventBus();
         var response = context.response();
-        var id = context.pathParam("id");
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put("column", "credential_id").put("value",id).put(TABLE,CREDENTIAL_TABLE).put("condition","individual"), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put("column", "credential_id").put("value", context.pathParam("id")).put(TABLE, CREDENTIAL_TABLE).put("condition", "individual"), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());

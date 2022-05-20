@@ -22,7 +22,7 @@ public class Discovery {
     public void init(Router router) {
         router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::create);
         router.route().method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::update);
-        router.route().method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT + "/:id/").handler(this::validate).handler(this::delete);
+        router.route().method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT).handler(this::get);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::getById);
         router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT + "/:id/run").handler(this::runDiscovery);
@@ -232,7 +232,7 @@ public class Discovery {
         Future<JsonObject> future = promise.future();
         Promise<String> promiseQuery = Promise.promise();
         Future<String> futureQuery = promiseQuery.future();
-        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put("query", query), handler -> {
+        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put(QUERY, query), handler -> {
             if (handler.succeeded()) {
                 if (handler.result().body().getJsonArray(RESULT).isEmpty()) {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -262,7 +262,7 @@ public class Discovery {
             }
         });
         futureQuery.onComplete(handler -> {
-            eventBus.<JsonObject>request(DATABASE, new JsonObject().put("query", handler.result()).put(METHOD, EXECUTE_QUERY).put("condition", "update"), queryHandler -> {
+            eventBus.<JsonObject>request(DATABASE, new JsonObject().put(QUERY, handler.result()).put(METHOD, EXECUTE_QUERY).put("condition", "update"), queryHandler -> {
                 if (queryHandler.failed()) {
                     errors.add(queryHandler.cause().getMessage());
                 } else {
@@ -271,7 +271,7 @@ public class Discovery {
                         response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "Discovered successfully").encodePrettily());
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, queryHandler.cause().getMessage()).encodePrettily());
+                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, errors).encodePrettily());
                         LOGGER.error(handler.cause().getMessage());
                     }
                 }
