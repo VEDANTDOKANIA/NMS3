@@ -73,7 +73,6 @@ public class DatabaseEngine extends AbstractVerticle {
                         handler.body().remove(TABLE);
                         result = update(table, handler.body());
                     }
-
                     result.onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
                             handler.reply(completeHandler.result());
@@ -88,7 +87,6 @@ public class DatabaseEngine extends AbstractVerticle {
                     handler.body().remove(METHOD);
                     var futures = new ArrayList<Future>();
                     handler.body().stream().forEach(key -> {
-
                         if (key.getKey().contains(".")) {
                             futures.add(check(table, key.getKey().replace(".", "_"), handler.body().getString(key.getKey())));
                         } else {
@@ -113,7 +111,7 @@ public class DatabaseEngine extends AbstractVerticle {
                             handler.reply(handler.body());
                         } else {
                             if (checkProfile.failed()) {
-                                handler.fail(-1, "cannot delete because profile already exsists in discovery table");
+                                handler.fail(-1, "cannot delete because profile already exists in discovery table");
                             } else {
                                 handler.fail(-1, completeHandler.cause().getMessage());
                             }
@@ -192,7 +190,6 @@ public class DatabaseEngine extends AbstractVerticle {
                                 var object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
                                 metric.put("objects", object);
                             }
-
                             Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value -> futures.add(insert(METRIC_TABLE, metric.mergeIn(value))));
                             CompositeFuture.join(futures).onComplete(completeHandler -> {
                                 if (completeHandler.succeeded()) {
@@ -207,7 +204,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case "check" -> {
+                case "check" ->        {
                     check(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).onComplete(result -> {
                         if (result.succeeded()) {
                             handler.reply(result.result());
@@ -216,7 +213,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case "delete" -> {
+                case "delete" ->       {
                     delete(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).compose(handler1 -> executeQuery(handler.body().getString(QUERY), "delete")).onComplete(handler1 -> {
                         if (handler1.succeeded()) {
                             handler.reply(handler1.result());
@@ -225,7 +222,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case "get" -> {
+                case "get" ->          {
                     getQuery(handler.body().getString(QUERY)).onComplete(result -> {
                         if (result.succeeded()) {
                             handler.reply(result.result());
@@ -239,6 +236,8 @@ public class DatabaseEngine extends AbstractVerticle {
         startPromise.complete();
     }
 
+
+    // # connect with database
     private Connection connect() {
         Connection connection = null;
         try {
@@ -250,7 +249,7 @@ public class DatabaseEngine extends AbstractVerticle {
         }
         return connection;
     }
-
+   // # returns the auto incremented id
     private Future<Integer> getId(String table) {
         Promise<Integer> promise = Promise.promise();
         Bootstrap.vertx.executeBlocking(handler -> {
@@ -268,7 +267,7 @@ public class DatabaseEngine extends AbstractVerticle {
         });
         return promise.future();
     }
-
+    // # checks if particular data is available in the column
     private Future<JsonObject> check(String table, String column, String data) {
         var errors = new ArrayList<String>();
         Promise<JsonObject> promise = Promise.promise();
@@ -309,6 +308,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # delete the row based on table column and data . for eg. delete(Credential, "credential_id",2)
     private Future<JsonObject> delete(String table, String column, String data) {
         var errors = new ArrayList<String>();
         Promise<JsonObject> promise = Promise.promise();
@@ -336,6 +336,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # update all the elements present in the JsonObject with table name provided as a string
     private Future<JsonObject> update(String table, JsonObject credential) {
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -378,6 +379,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # insert all the elements present in the JsonObject with table name provided as a string
     private Future<JsonObject> insert(String table, JsonObject credential) {
         credential.remove("method");
         credential.remove(TABLE);
@@ -416,6 +418,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # selects all column from the table . needs to pass table and condition (all or individual)
     private Future<JsonObject> get(JsonObject credential) {
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -477,6 +480,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # based on the query it selects the columns and returns json object
     private Future<JsonObject> getQuery(String query) {
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -527,6 +531,7 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # can be used to execute any query. condition column takes entries update, delete
     private Future<JsonObject> executeQuery(String query, String condition) {
 
         Promise<JsonObject> promise = Promise.promise();
@@ -560,6 +565,8 @@ public class DatabaseEngine extends AbstractVerticle {
         return promise.future();
     }
 
+    // # map columns corresponding to the values. Can be used in all function to get values.
+    // # return Json object containing two keys columns and values in a order
     private JsonObject transform(JsonObject credentials) {
         var column = new StringBuilder();
         var value = new StringBuilder();

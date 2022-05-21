@@ -57,7 +57,8 @@ public class Credential {
                                 error.add("wrong key community in type " + context.getBodyAsJson().getString(TYPE));
                             }
                         }
-                        if (context.getBodyAsJson().getString(PROTOCOl).equals("snmp")) {
+                       else if (context.getBodyAsJson().getString(PROTOCOl).equals("snmp"))
+                       {
                             if (!(context.getBodyAsJson().containsKey("community"))) {
                                 error.add("Community not provided");
                             }
@@ -74,9 +75,13 @@ public class Credential {
                             error.add("Wrong protocol selected");
                         }
                     }
-                    if (context.getBodyAsJson().containsKey(CREDENTIAL_NAME) && context.getBodyAsJson().getString(CREDENTIAL_NAME) != null) {
+                    if (context.getBodyAsJson().containsKey(CREDENTIAL_NAME) && context.getBodyAsJson().getString(CREDENTIAL_NAME) == null) {
                         error.add("credential name should be provided");
                     }
+                    if (context.getBodyAsJson().containsKey(TYPE) && context.getBodyAsJson().getString(TYPE) == null) {
+                        error.add(" type should be provided");
+                    }
+
                     if (error.isEmpty()) {
                         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_CHECK).put(TABLE, CREDENTIAL_TABLE).put(CREDENTIAL_NAME, context.getBodyAsJson().getString(CREDENTIAL_NAME)), handler -> {
                             if (handler.succeeded() && handler.result().body() != null) {
@@ -140,21 +145,12 @@ public class Credential {
                     if (context.pathParam("id") == null) {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
-                    } else {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(CREDENTIAL_ID, (context.pathParam("id"))).put(METHOD, CREDENTIAL_DATABASE_CHECK_ID), handler -> {
-                            if (handler.succeeded()) {
-                                context.next();
-                            } else {
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                                LOGGER.error(handler.cause().getMessage());
-                            }
-                        });
+                }else{
+                        context.next();
                     }
 
 
-                }
-
+            }
                 default -> {
                     LOGGER.error("Error occurred {} ", context.request().method());
                 }

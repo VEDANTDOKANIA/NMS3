@@ -272,7 +272,7 @@ public class Discovery {
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, errors).encodePrettily());
-                        LOGGER.error(handler.cause().getMessage());
+
                     }
                 }
             });

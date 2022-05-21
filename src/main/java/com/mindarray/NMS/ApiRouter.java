@@ -10,9 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ApiRouter extends AbstractVerticle {
+ // * bbyby
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiRouter.class);
     @Override
-    public void start(Promise<Void> startPromise) throws Exception {
+    public void start(Promise<Void> startPromise) {
         Router mainRouter = Router.router(vertx);
         Router router = Router.router(vertx);
         mainRouter.mountSubRouter("/api/",router);

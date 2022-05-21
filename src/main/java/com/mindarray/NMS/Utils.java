@@ -68,6 +68,7 @@ public class Utils {
             LOGGER.error("credential is null");
         } else {
             String encoder = (Base64.getEncoder().encodeToString((credential).toString().getBytes(StandardCharsets.UTF_8)));
+            System.out.println(encoder);
             var processBuilder = new NuProcessBuilder(Arrays.asList("./plugin.exe", encoder));
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
