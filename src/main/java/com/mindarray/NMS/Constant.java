@@ -24,11 +24,13 @@ public class Constant {
     public static final String EXECUTE_QUERY = "executeQuery";
 
 
+
     //Discovery Database Address
     public static final String DISCOVERY_DATABASE_CHECK_NAME = "discoveryName";
     public static final String RUN_DISCOVERY_DISCOVERY_ENGINE = "runDiscovery";
     public static final String DISCOVERY_DATABASE_CHECK_MULTIPLE = "discoveryCheckMultiple";
-
+    public static final String PROVISION_SCHEDULER ="scheduler";
+    public static final String SCHEDULER_POLLING ="scheduler_polling";
 
     // Json constants
     public static final String IP = "ip";

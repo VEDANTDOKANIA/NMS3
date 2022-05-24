@@ -1,5 +1,6 @@
 package com.mindarray.NMS;
 
+import com.mindarray.Bootstrap;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.mindarray.NMS.Constant.*;
 
@@ -24,18 +26,17 @@ public class DatabaseEngine extends AbstractVerticle {
         eventBus.<JsonObject>localConsumer(DATABASE, handler -> {
             switch (handler.body().getString(METHOD)) {
                 case DATABASE_CREATE -> {
-                    Future<JsonObject> result = null;
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
-                        result = insert(handler.body().getString(TABLE), handler.body());
+                       insert(handler.body().getString(TABLE), handler.body()).onComplete(completeHandler -> {
+                           if (completeHandler.succeeded()) {
+                               handler.reply(completeHandler.result());
+                           } else {
+                               handler.fail(-1, completeHandler.cause().getMessage());
+                           }
+                       });
+                    } else {
+                        handler.fail(-1,"no table selected for create");
                     }
-                    result.onComplete(completeHandler -> {
-                        if (completeHandler.succeeded()) {
-                            handler.reply(completeHandler.result());
-                        } else {
-                            handler.fail(-1, completeHandler.cause().getMessage());
-                        }
-
-                    });
                 }
                 case DATABASE_DELETE -> {
                     Future<JsonObject> result = null;
@@ -66,20 +67,19 @@ public class DatabaseEngine extends AbstractVerticle {
                     }
                 }
                 case DATABASE_UPDATE -> {
-                    handler.body().remove(METHOD);
-                    Future<JsonObject> result = null;
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
-                        var table = handler.body().getString(TABLE);
-                        handler.body().remove(TABLE);
-                        result = update(table, handler.body());
+                         update(handler.body().getString(TABLE), handler.body()).onComplete(completeHandler -> {
+                            if (completeHandler.succeeded()) {
+                                handler.reply(completeHandler.result());
+                            } else {
+                                handler.fail(-1, completeHandler.cause().getMessage());
+                            }
+                        });
                     }
-                    result.onComplete(completeHandler -> {
-                        if (completeHandler.succeeded()) {
-                            handler.reply(completeHandler.result());
-                        } else {
-                            handler.fail(-1, completeHandler.cause().getMessage());
-                        }
-                    });
+                    else {
+                        handler.fail(-1,"no table selected for create");
+                    }
+
                 }
                 case DATABASE_CHECK -> {
                     var table = handler.body().getString(TABLE);
@@ -101,7 +101,6 @@ public class DatabaseEngine extends AbstractVerticle {
                             handler.fail(-1, context.cause().getMessage());
                         }
                     });
-
                 }
                 case CREDENTIAL_DATABASE_CHECK_ID -> {
                     var checkId = check(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_ID));
@@ -161,7 +160,6 @@ public class DatabaseEngine extends AbstractVerticle {
                         } else {
                             handler.fail(-1, completeHandler.cause().getMessage());
                         }
-
                     });
                 }
                 case EXECUTE_QUERY -> {
@@ -183,17 +181,25 @@ public class DatabaseEngine extends AbstractVerticle {
                 case "runProvision" -> {
                     var futures = new ArrayList<Future>();
                     var errors = new ArrayList<String>();
-                    getQuery(handler.body().getString(QUERY)).compose(futureResult -> check(MONITOR_TABLE, IP, handler.body().getString(IP))).compose(futureResult -> insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)))).onComplete(futureResult -> {
+                    getQuery(handler.body().getString(QUERY)).compose(futureResult -> check(MONITOR_TABLE, IP, handler.body().getString(IP))).compose(futureResult ->
+                            insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)).put("host",handler.body().getString("host")))).onComplete(futureResult -> {
                         if (futureResult.succeeded()) {
                             var metric = new JsonObject().put("monitor.id", futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
+                            var objects = new JsonObject();
                             if (handler.body().containsKey("objects")) {
-                                var object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
-                                metric.put("objects", object);
+                                var  object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
+                                objects.put("objects",object);
                             }
-                            Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value -> futures.add(insert(METRIC_TABLE, metric.mergeIn(value))));
+                            Utils.metricGroup(handler.body().getString(TYPE)).stream().map(JsonObject::mapFrom).forEach(value -> {
+                                    if(value.getString("metric.group").equals("interface")){
+                                    metric.mergeIn(objects);
+                                    }
+                                    futures.add(insert(METRIC_TABLE, metric.mergeIn(value)));
+                                    metric.remove("objects");
+                                });
                             CompositeFuture.join(futures).onComplete(completeHandler -> {
                                 if (completeHandler.succeeded()) {
-                                    handler.reply(new JsonObject().put(MESSAGE, "your unique id is " + metric.getString("monitor.id")));
+                                    handler.reply(new JsonObject().put("id",metric.getString("monitor.id")));
                                 } else {
                                     errors.add(completeHandler.cause().getMessage());
                                 }
@@ -222,7 +228,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case "get" ->          {
+                case "get" -> {
                     getQuery(handler.body().getString(QUERY)).onComplete(result -> {
                         if (result.succeeded()) {
                             handler.reply(result.result());
@@ -235,17 +241,15 @@ public class DatabaseEngine extends AbstractVerticle {
         });
         startPromise.complete();
     }
-
-
     // # connect with database
     private Connection connect() {
         Connection connection = null;
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/", "vedant.dokania", "Mind@123");
-            LOGGER.info("Database Connection Successful");
-        } catch (Exception e) {
-            LOGGER.error("Exception Occurred :{}", e.getMessage());
+            LOGGER.info("database connection successful");
+        } catch (Exception exception) {
+            LOGGER.error("error occurred :{}",exception.getMessage());
         }
         return connection;
     }
@@ -338,6 +342,11 @@ public class DatabaseEngine extends AbstractVerticle {
 
     // # update all the elements present in the JsonObject with table name provided as a string
     private Future<JsonObject> update(String table, JsonObject credential) {
+        credential.remove(METHOD);
+        credential.remove(TABLE);
+        credential.remove(PROTOCOl);
+        credential.remove(PORT);
+        credential.remove(TYPE);
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
         var query = new StringBuilder();
@@ -533,7 +542,6 @@ public class DatabaseEngine extends AbstractVerticle {
 
     // # can be used to execute any query. condition column takes entries update, delete
     private Future<JsonObject> executeQuery(String query, String condition) {
-
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
         var resultAll = new JsonObject();

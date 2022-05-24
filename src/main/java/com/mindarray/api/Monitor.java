@@ -1,6 +1,9 @@
 package com.mindarray.api;
 
-import com.mindarray.NMS.Bootstrap;
+import com.mindarray.Bootstrap;
+import com.mindarray.NMS.Utils;
+import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
@@ -25,6 +28,7 @@ public class Monitor {
 
 
     private void validate(RoutingContext context) {
+        LOGGER.info("routing context path :{} , routing context method : {}",context.normalizedPath(),context.request().method());
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         HttpServerResponse response = context.response();
@@ -56,6 +60,7 @@ public class Monitor {
                     }
                     if (error.isEmpty()) {
                         context.next();
+                        LOGGER.info("validation performed successfully :{}",context.request().method());
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(ERROR, error).encodePrettily());
@@ -73,6 +78,7 @@ public class Monitor {
                         eventBus.<JsonObject>request(PROVISION, new JsonObject().put(MONITOR_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, MONITOR_TABLE), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
+                                LOGGER.info("validation performed successfully :{}",context.request().method());
                             } else {
                                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -91,9 +97,10 @@ public class Monitor {
             LOGGER.error(exception.getMessage());
         }
     }
-
     private void create(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
+        Promise<JsonObject> promise = Promise.promise();
+        Future<JsonObject> future = promise.future();
         var response = context.response();
         var query = "select discovery_id from discovery where JSON_SEARCH(discovery_result,\"one\",\"success\") and credential_profile=\"" + context.getBodyAsJson().getString(CREDENTIAL_PROFILE) + "\" and "
                 + " discovery.ip= \"" + context.getBodyAsJson().getString(IP) + "\" and " + "discovery.port=" + context.getBodyAsJson().getInteger(PORT) +
@@ -101,10 +108,32 @@ public class Monitor {
         eventBus.<JsonObject>request(PROVISION, new JsonObject().put(METHOD, "runProvision").put(QUERY, query).mergeIn(context.getBodyAsJson()), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, handler.result().body().getString(MESSAGE)).encodePrettily());
+                response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "your unique monitor id is "+handler.result().body().getString("id")).encodePrettily());
+                promise.complete(context.getBodyAsJson().put("id",handler.result().body().getString("id")));
+                LOGGER.info(" context :{}, status :{} , message :{}",context.getBodyAsJson(),"success",handler.result().body().getString(MESSAGE));
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                promise.fail("provision failed");
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
+            }
+        });
+        future.onComplete(handler ->{
+            if(handler.succeeded()){
+                var getQuery = "select metric_id,username,password,community,version,metric_group,time from credential,metric where metric.credential_profile= credential_id and credential_id="+ handler.result().getInteger(CREDENTIAL_PROFILE)+";";
+                eventBus.<JsonObject>request(PROVISION,handler.result().put(METHOD,"get").put(QUERY,getQuery),result ->{
+                   if(result.succeeded()){
+                       var data = new JsonObject();
+                       var pollingData = new JsonObject().put(IP,handler.result().getString(IP)).put(PORT,handler.result().getInteger(PORT))
+                               .put(TYPE,handler.result().getString(TYPE)).put("category","polling");
+                      result.result().body().getJsonArray("result").stream().map(JsonObject::mapFrom).forEach(value->{
+                          data.put(value.getString("metric.id"),value.mergeIn(pollingData));
+                          eventBus.send(PROVISION_SCHEDULER,data);
+                      });
+                   }
+                });
+            }else{
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
@@ -116,9 +145,11 @@ public class Monitor {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
+                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
@@ -130,10 +161,11 @@ public class Monitor {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());
+                LOGGER.info("status :{}","success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
@@ -145,10 +177,11 @@ public class Monitor {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());
+                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }

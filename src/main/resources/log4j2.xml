@@ -1,14 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="INFO">
+<Configuration status="info" name="Vert.x" packages="com.mindarray">
   <Appenders>
+    <RollingFile name="RollingFile" fileName="logs/nms.log"
+                 filePattern="logs/$${date:yyyy-MM}/nms-%d{MM-dd-yyyy}-%i.log.gz">
+      <PatternLayout>
+        <Pattern>%d{HH:mm:ss.SSS}   [%t] %logger{36} - %msg%n</Pattern>
+      </PatternLayout>
+      <Policies>
+        <TimeBasedTriggeringPolicy />
+        <SizeBasedTriggeringPolicy size="500 mb"/>
+      </Policies>
+    </RollingFile>
     <Console name="Console" target="SYSTEM_OUT">
       <PatternLayout pattern="%blue{%d{HH:mm:ss.SSS}} [%t] %highlight{%-5level} %magenta{%logger{36}} - %msg%n"/>
     </Console>
   </Appenders>
   <Loggers>
-    <Root level="INFO">
-      <AppenderRef ref="Console"/>
+    <Root level="Info">
+      <AppenderRef ref="RollingFile"/>
+      <AppenderRef ref="Console" />
     </Root>
-    <Logger name="vertex" level="DEBUG"/>
   </Loggers>
 </Configuration>
+

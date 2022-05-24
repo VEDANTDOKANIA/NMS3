@@ -1,5 +1,6 @@
 package com.mindarray.NMS;
 
+import com.mindarray.ProcessHandler;
 import com.zaxxer.nuprocess.NuProcessBuilder;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -8,6 +9,7 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,7 +17,7 @@ import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import static com.mindarray.NMS.Constant.RESULT;
+import static com.mindarray.NMS.Constant.*;
 
 public class Utils {
     private static final Logger LOGGER = LoggerFactory.getLogger(Utils.class);
@@ -46,7 +48,7 @@ public class Utils {
                 var matcher = pattern.matcher(result);
                 if (matcher.find()) {
                     if (!matcher.group(1).equals("0")) {
-                        errors.add("Loss percentage is :" + matcher.group(1));
+                        errors.add(" packet loss percentage is :" + matcher.group(1));
                     }
                 }
             }
@@ -68,14 +70,13 @@ public class Utils {
             LOGGER.error("credential is null");
         } else {
             String encoder = (Base64.getEncoder().encodeToString((credential).toString().getBytes(StandardCharsets.UTF_8)));
-            System.out.println(encoder);
             var processBuilder = new NuProcessBuilder(Arrays.asList("./plugin.exe", encoder));
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
             var process = processBuilder.start();
             handler.onStart(process);
             try {
-                process.waitFor(8000, TimeUnit.MILLISECONDS);
+                process.waitFor(60000, TimeUnit.MILLISECONDS);
             } catch (Exception exception) {
                 errors.add(exception.getCause().getMessage());
                 Thread.currentThread().interrupt();
@@ -87,10 +88,24 @@ public class Utils {
                 output = new JsonObject(result);
             }
         }
+        if(output.getString(STATUS).equals(FAIL)){
+            errors.add(output.getValue(ERROR).toString());
+        }
         if (errors.isEmpty()) {
             promise.complete(credential.put(RESULT, output));
+
         } else {
             promise.fail(errors.toString());
+        }
+        return promise.future();
+    }
+
+    public static Future<JsonObject> checkPort(JsonObject credential){
+        Promise<JsonObject>  promise = Promise.promise();
+        try( var socket = new Socket(credential.getString(IP),credential.getInteger(PORT))){
+           promise.complete(new JsonObject().put(STATUS,SUCCESS));
+        }catch (Exception exception){
+        promise.fail(exception.getMessage());
         }
         return promise.future();
     }
@@ -99,22 +114,25 @@ public class Utils {
         var metric = new JsonArray();
         switch (type) {
             case "linux" -> {
-                metric.add(new JsonObject().put("metric_group", "Cpu").put("time", 5000));
-                metric.add(new JsonObject().put("metric_group", "Disk").put("time", 6000));
-                metric.add(new JsonObject().put("metric_group", "Memory").put("time", 8000));
-                metric.add(new JsonObject().put("metric_group", "Process").put("time", 5000));
-                metric.add(new JsonObject().put("metric_group", "System").put("time", 9000));
+                metric.add(new JsonObject().put("metric.group", "cpu").put("time", 50000));
+                metric.add(new JsonObject().put("metric.group", "disk").put("time", 60000));
+                metric.add(new JsonObject().put("metric.group", "memory").put("time", 80000));
+                metric.add(new JsonObject().put("metric.group", "process").put("time", 50000));
+                metric.add(new JsonObject().put("metric.group", "system").put("time", 90000));
+                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
             }
             case "windows" -> {
-                metric.add(new JsonObject().put("metric_group", "Cpu").put("time", 8000));
-                metric.add(new JsonObject().put("metric_group", "Disk").put("time", 10000));
-                metric.add(new JsonObject().put("metric_group", "Memory").put("time", 11000));
-                metric.add(new JsonObject().put("metric_group", "Process").put("time", 8000));
-                metric.add(new JsonObject().put("metric_group", "System").put("time", 12000));
+                metric.add(new JsonObject().put("metric.group", "cpu").put("time", 80000));
+                metric.add(new JsonObject().put("metric.group", "disk").put("time", 100000));
+                metric.add(new JsonObject().put("metric.group", "memory").put("time", 110000));
+                metric.add(new JsonObject().put("metric.group", "process").put("time", 80000));
+                metric.add(new JsonObject().put("metric.group", "system").put("time", 120000));
+                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
             }
             case "snmp" -> {
-                metric.add(new JsonObject().put("metric_group", "System").put("time", 8000));
-                metric.add(new JsonObject().put("metric_group", "Interface").put("time", 5000));
+                metric.add(new JsonObject().put("metric.group", "system").put("time", 80000));
+                metric.add(new JsonObject().put("metric.group", "interface").put("time", 50000));
+                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
             }
         }
         return metric;

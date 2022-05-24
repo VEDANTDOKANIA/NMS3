@@ -19,18 +19,15 @@ public class ApiRouter extends AbstractVerticle {
         mainRouter.mountSubRouter("/api/",router);
         mainRouter.route().handler(BodyHandler.create());
         router.route().handler(BodyHandler.create());
-        var discovery = new Discovery();
-        discovery.init(router);
-        var credential = new Credential();
-        credential.init(router);
-        var monitor = new Monitor();
-        monitor.init(router);
+        new Discovery().init(router);
+        new Credential().init(router);
+        new Monitor().init(router);
         vertx.createHttpServer().requestHandler(mainRouter).listen(5557).onComplete( handler ->{
             if(handler.succeeded()){
                 LOGGER.info("HTTP server started");
                 startPromise.complete();
             }else{
-                LOGGER.info("Unable to start HTTP server"+ handler.cause().getMessage());
+                LOGGER.info("Unable to start HTTP server :{}", handler.cause().getMessage());
                 startPromise.fail(handler.cause().getMessage());
             }
 

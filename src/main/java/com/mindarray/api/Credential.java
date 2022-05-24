@@ -1,6 +1,6 @@
 package com.mindarray.api;
 
-import com.mindarray.NMS.Bootstrap;
+import com.mindarray.Bootstrap;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
@@ -15,7 +15,6 @@ import static com.mindarray.NMS.Constant.*;
 
 public class Credential {
     private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
-
     public void init(Router router) {
         router.route().method(HttpMethod.POST).path(CREDENTIAL_ENDPOINT).handler(this::validate).handler(this::create);
         router.route().method(HttpMethod.PUT).path(CREDENTIAL_ENDPOINT).handler(this::validate).handler(this::update);
@@ -25,6 +24,7 @@ public class Credential {
     }
 
     private void validate(RoutingContext context) {
+        LOGGER.info("routing context path :{} , routing context method : {}",context.normalizedPath(),context.request().method());
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         HttpServerResponse response = context.response();
@@ -39,7 +39,6 @@ public class Credential {
                 });
                 context.setBody(credentials.toBuffer());
             }
-
             switch (context.request().method().toString()) {
                 case "POST" -> {
                     if (context.getBodyAsJson().containsKey(PROTOCOl)) {
@@ -81,11 +80,11 @@ public class Credential {
                     if (context.getBodyAsJson().containsKey(TYPE) && context.getBodyAsJson().getString(TYPE) == null) {
                         error.add(" type should be provided");
                     }
-
                     if (error.isEmpty()) {
                         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_CHECK).put(TABLE, CREDENTIAL_TABLE).put(CREDENTIAL_NAME, context.getBodyAsJson().getString(CREDENTIAL_NAME)), handler -> {
                             if (handler.succeeded() && handler.result().body() != null) {
                                 context.next();
+                                LOGGER.info("validation performed successfully :{}",context.request().method());
                             } else {
                                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -105,6 +104,7 @@ public class Credential {
                         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, CREDENTIAL_DATABASE_CHECK_ID).put(CREDENTIAL_ID, id), handler -> {
                             if (handler.succeeded() && handler.result().body() != null) {
                                 context.next();
+                                LOGGER.info("validation performed successfully :{}",context.request().method());
                             } else {
                                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -119,20 +119,20 @@ public class Credential {
                 }
                 case "PUT" -> {
                     var conditions = new JsonObject();
+                    context.getBodyAsJson().remove(PROTOCOl);
                     if ((!(context.getBodyAsJson().containsKey(CREDENTIAL_ID))) || context.getBodyAsJson().getString(CREDENTIAL_ID) == null) {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
                         LOGGER.error("id is null");
                     } else {
-                        if (context.getBodyAsJson().containsKey(CREDENTIAL_ID)) {
                             conditions.put(CREDENTIAL_ID, context.getBodyAsJson().getString(CREDENTIAL_ID));
-                        }
                         if (context.getBodyAsJson().containsKey(CREDENTIAL_NAME)) {
                             conditions.put(CREDENTIAL_NAME, context.getBodyAsJson().getString(CREDENTIAL_NAME));
                         }
-                        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CHECK).put(TABLE, CREDENTIAL_TABLE).mergeIn(conditions), handler -> {
+                        eventBus.<JsonObject>request(DATABASE,conditions.put(METHOD,DATABASE_CHECK).put(TABLE,CREDENTIAL_TABLE), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
+                                LOGGER.info("validation performed successfully :{}",context.request().method());
                             } else {
                                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                                 response.end(new JsonObject().put(ERROR, new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage())).encodePrettily());
@@ -147,8 +147,8 @@ public class Credential {
                         response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
                 }else{
                         context.next();
+                        LOGGER.info("validation performed successfully :{}",context.request().method());
                     }
-
 
             }
                 default -> {
@@ -168,25 +168,26 @@ public class Credential {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, handler.result().body().getString(MESSAGE)).encodePrettily());
+                LOGGER.info(" context:{}, status :{} , message :{}",context.getBodyAsJson(),"success",handler.result().body().getString(MESSAGE));
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
-
     }
-
     private void update(RoutingContext context) {
         var response = context.response();
+
         Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
+                LOGGER.info("context :{}, status :{}",context.getBodyAsJson(),"success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
@@ -197,10 +198,11 @@ public class Credential {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
+                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred: {}",handler.cause().getMessage());
             }
 
         });
@@ -212,10 +214,11 @@ public class Credential {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());
+                LOGGER.info("status :{}","success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
@@ -226,10 +229,11 @@ public class Credential {
             if (handler.succeeded() && handler.result().body() != null) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(handler.result().body().encodePrettily());
+                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
             } else {
                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error(handler.cause().getMessage());
+                LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
     }
