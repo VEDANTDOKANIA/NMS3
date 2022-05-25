@@ -24,7 +24,10 @@ public class Monitor {
         router.route().method(HttpMethod.DELETE).path(MONITOR_ENDPOINT + "/:id").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT).handler(this::get);
         router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT + "/:id").handler(this::validate).handler(this::getId);
+        router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT+"/:id"+"/Polling").handler(this::validate).handler(this::priorityPolling);
     }
+
+
 
 
     private void validate(RoutingContext context) {
@@ -184,5 +187,29 @@ public class Monitor {
                 LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
         });
+    }
+
+    private void priorityPolling(RoutingContext context) {
+        var response = context.response();
+        var id = context.pathParam("id");
+        var eventBus = Bootstrap.getVertx().eventBus();
+        var query = "select metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile and monitor.monitor_id=" +id+";";
+       eventBus.<JsonObject>request(PROVISION,new JsonObject().put(QUERY,query).put(METHOD,"get"),handler ->{
+           if(handler.succeeded() && handler.result().body()!=null){
+               handler.result().body().getJsonArray("result").stream().map(JsonObject::mapFrom).forEach(value ->{
+                   eventBus.send(PRIORITY_POLLING,value.put("category","polling"));
+               });
+               response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+               response.end(handler.result().body().encodePrettily());
+               LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
+           }else{
+               response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+               response.end(handler.cause().getMessage());
+               LOGGER.error("error occurred :{}",handler.cause().getMessage());
+           }
+       });
+
+
+
     }
 }

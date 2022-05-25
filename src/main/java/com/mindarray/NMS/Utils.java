@@ -33,31 +33,31 @@ public class Utils {
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
             var process = processBuilder.start();
-            handler.onStart(process);
-            try {
-                process.waitFor(4000, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException exception) {
-                errors.add(exception.getCause().getMessage());
-                Thread.currentThread().interrupt();
-            }
-            var result = handler.output();
-            if (result == null) {
-                errors.add("Request time out occurred");
-            } else {
-                var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+\\:\\s+\\w+/\\w+/%\\w+\\s+\\=\\s+\\d+/\\d+/(\\d+)%");
-                var matcher = pattern.matcher(result);
-                if (matcher.find()) {
-                    if (!matcher.group(1).equals("0")) {
-                        errors.add(" packet loss percentage is :" + matcher.group(1));
+            try{
+                    handler.onStart(process);
+                    process.waitFor(4000, TimeUnit.MILLISECONDS);
+                var result = handler.output();
+                if (result == null) {
+                    errors.add("Request time out occurred");
+                } else {
+                    var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+\\:\\s+\\w+/\\w+/%\\w+\\s+\\=\\s+\\d+/\\d+/(\\d+)%");
+                    var matcher = pattern.matcher(result);
+                    if (matcher.find()) {
+                        if (!matcher.group(1).equals("0")) {
+                            errors.add(" packet loss percentage is :" + matcher.group(1));
+                        }
                     }
                 }
+            }catch (Exception exception){
+              errors.add(exception.getCause().getMessage());
+            }finally {
+                process.destroy(true);
             }
-        }
-        if (errors.isEmpty()) {
-            promise.complete(credential);
-        } else {
-            promise.fail(errors.toString());
-        }
+            if (errors.isEmpty()) {
+                promise.complete(credential);
+            } else {
+                promise.fail(errors.toString());
+            }}
         return promise.future();
     }
 
@@ -76,7 +76,7 @@ public class Utils {
             var process = processBuilder.start();
             handler.onStart(process);
             try {
-                process.waitFor(60000, TimeUnit.MILLISECONDS);
+                process.waitFor(30000, TimeUnit.MILLISECONDS);
             } catch (Exception exception) {
                 errors.add(exception.getCause().getMessage());
                 Thread.currentThread().interrupt();

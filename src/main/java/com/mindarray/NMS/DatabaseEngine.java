@@ -23,6 +23,7 @@ public class DatabaseEngine extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) {
         var eventBus = vertx.eventBus();
+        initial();
         eventBus.<JsonObject>localConsumer(DATABASE, handler -> {
             switch (handler.body().getString(METHOD)) {
                 case DATABASE_CREATE -> {
@@ -241,6 +242,19 @@ public class DatabaseEngine extends AbstractVerticle {
         });
         startPromise.complete();
     }
+
+    private void initial() {
+        var query = "select metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile;";
+        getQuery(query).onComplete(handler ->{
+            if(handler.succeeded()){
+                Bootstrap.getVertx().eventBus().send(INITIAL_POLL_DATA,handler.result());
+            }else{
+
+                LOGGER.error(handler.cause().getMessage());
+            }
+        });
+    }
+
     // # connect with database
     private Connection connect() {
         Connection connection = null;

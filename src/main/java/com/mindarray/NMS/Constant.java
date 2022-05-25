@@ -12,7 +12,11 @@ public class Constant {
     //Event Bus consumer
     public static final String PROVISION = "provision";
     public static final String DATABASE = "Database";
+    public static final String INITIAL_POLL_DATA="initial_poll_data";
 
+    public static final String PRIORITY_POLLING ="priorityPolling";
+
+    public static final String SCHEDULER_POLLER_PRIORITY_POLLING ="pollerPriorityPolling";
     //Database methods
     public static final String DATABASE_CREATE = "create";
     public static final String DATABASE_DELETE = "delete";

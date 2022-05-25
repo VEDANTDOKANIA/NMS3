@@ -3,6 +3,7 @@ package com.mindarray.NMS;
 import com.mindarray.api.Monitor;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,32 +18,43 @@ public class MetricScheduler extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) {
       var eventBus = vertx.eventBus();
-      ConcurrentHashMap<String, JsonObject> pollingData = new ConcurrentHashMap<>();
-      ConcurrentHashMap<String, JsonObject> poller = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, JsonObject> pollingData = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, Integer> poller = new ConcurrentHashMap<>();
+      eventBus.<JsonObject>localConsumer(INITIAL_POLL_DATA,handler ->{
+          if(handler.body() != null){
+              handler.body().getJsonArray("result").stream().map(JsonObject::mapFrom).forEach(value ->{
+                  pollingData.put(value.getString("metric.id"),value.put("category","polling"));
+               //   var map = new ConcurrentHashMap<>(value.getMap());
+                  poller.put(value.getString("metric.id"), value.getInteger("time"));
+              });
+          }else {
+              LOGGER.error("error occurred :{}","initial polling data handler is null");
+          }
+      });
+
      eventBus.<JsonObject>localConsumer(PROVISION_SCHEDULER,handler->{
       handler.body().forEach(value ->{
        pollingData.put(value.getKey(), handler.body().getJsonObject(value.getKey()));
-          var map = new ConcurrentHashMap<>(handler.body().getJsonObject(value.getKey()).getMap());
-          poller.put(value.getKey(), JsonObject.mapFrom(map));
+          poller.put(value.getKey(), handler.body().getJsonObject(value.getKey()).getInteger("time"));
       });
    });
+
 
 
    vertx.setPeriodic(10000,handler->{
        if(poller.size()>0){
            poller.forEach( (key,value)->{
-              var timeLeft = value.getInteger("time")-10000;
+              var timeLeft = value-10000;
               if(timeLeft <=0){
                   var originalTime =  pollingData.get(key).getInteger("time");
-                  value.put("time",originalTime);
-                  eventBus.send(SCHEDULER_POLLING,value);
+                  poller.put(key,originalTime);
+                  eventBus.send(SCHEDULER_POLLING,pollingData.get(key));
               }else{
-                  value.put("time",timeLeft);
+                  poller.put(key,timeLeft);
               }
            });
        }
    });
-
         startPromise.complete();
     }
 }

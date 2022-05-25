@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,27 +24,39 @@ public class Poller extends AbstractVerticle {
         var eventBus = vertx.eventBus();
        ConcurrentLinkedQueue<JsonObject>  queue = new ConcurrentLinkedQueue<>();
         eventBus.<JsonObject>localConsumer(SCHEDULER_POLLING,handler->{
-            queue.add(handler.body());
+            if(handler.body()!=null){
+                queue.add(handler.body());
+            }else{
+                LOGGER.error("error occurred :{}","scheduling polling handler body is null");
+            }
+        });
+        eventBus.<JsonObject>localConsumer(PRIORITY_POLLING,handler ->{
+            if(handler.body()!=null){
+                queue.add(handler.body());
+            }else{
+                LOGGER.error("error occurred :{}","scheduling polling handler body is null");
+            }
         });
 
+
         new Thread(() -> {
-            AtomicInteger poolSize = new AtomicInteger(10);
-            WorkerExecutor executor = Bootstrap.getVertx().createSharedWorkerExecutor("poller-pool", 10, 50000, TimeUnit.MILLISECONDS);
+          //  AtomicInteger poolSize = new AtomicInteger(10);
+            WorkerExecutor executor = Bootstrap.getVertx().createSharedWorkerExecutor("poller-pool", 10, 30000, TimeUnit.MILLISECONDS);
             while (true){
-                for(int i =0 ; i< poolSize.get() ;i++) {
+                //while (poolSize != 0){}
                     if (!queue.isEmpty()) {
                         var polling = queue.poll();
-                        poolSize.getAndDecrement();
+                       // poolSize.getAndDecrement();
                         if (polling.getString("metric.group").equals("ping")) {
                             executor.executeBlocking( handler ->{
                                 Utils.checkAvailability(polling).onComplete(result -> {
                                     if (result.succeeded()) {
                                         pingData.put(polling.getString(IP), "up");
-                                        poolSize.getAndIncrement();
                                     } else {
                                         pingData.put(polling.getString(IP), "down");
-                                        poolSize.getAndIncrement();
                                     }
+                                    handler.complete();
+                                  // poolSize.set(poolSize.incrementAndGet());
                                 });
                             });
                         } else {
@@ -52,24 +65,20 @@ public class Poller extends AbstractVerticle {
                                     Utils.spwanProcess(polling).onComplete(result -> {
                                         if (result.succeeded()) {
                                             LOGGER.info("Polling :{}", result.result());
-
-                                            poolSize.getAndIncrement();
-                                            handler.complete();
                                         } else {
-                                            LOGGER.info("Polling :{}", result.result());
-                                            poolSize.getAndIncrement();
-                                            handler.fail(result.result().encode());
+                                            LOGGER.info("Polling :{}", result.cause().getMessage());
                                         }
+                                        handler.complete();
+                                      // poolSize.set(poolSize.incrementAndGet());
                                     });
                                 });
-
                             } else {
                                 LOGGER.info("ip is down :{}", polling.getString(IP));
                             }
                         }
                     }
                 }
-            }
+
         }).start();
         startPromise.complete();
     }
