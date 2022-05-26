@@ -1,65 +1,41 @@
 package com.mindarray.NMS;
 
+import com.mindarray.Bootstrap;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.CompositeFuture;
-import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
-
-import java.util.ArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.mindarray.NMS.Constant.*;
 
 public class DiscoveryEngine extends AbstractVerticle {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryEngine.class);
     @Override
-    public void start(Promise<Void> startPromise) throws Exception {
-        var eventBus = vertx.eventBus();
-        eventBus.<JsonObject>localConsumer(RUN_DISCOVERY_DISCOVERY_ENGINE, handler -> {
-            if(!handler.body().getString(TYPE).equals("snmp")){
-                vertx.executeBlocking(blockingHandler ->{
-                    Utils.checkAvailability(handler.body()).
-                            compose(future ->Utils.checkPort(handler.body())).
-                            compose(future -> Utils.spwanProcess(handler.body()))
-                            .onComplete( completeHandler->{
-                                if(completeHandler.succeeded() && completeHandler.result().getJsonObject(RESULT).getString(STATUS).equals(SUCCESS)){
-                                    handler.reply(completeHandler.result().getJsonObject(RESULT));
-                                }else{
-                                    handler.fail(-1, completeHandler.cause().getMessage());
-                                }
-                                blockingHandler.complete();
-                            });
-                });
-
-            }else{
-                vertx.executeBlocking(blockingHandler ->{
-                    Utils.checkAvailability(handler.body()).
-                            compose(future -> Utils.spwanProcess(handler.body()))
-                            .onComplete( completeHandler->{
-                                if(completeHandler.succeeded() && completeHandler.result().getJsonObject(RESULT).getString(STATUS).equals(SUCCESS)){
-                                    handler.reply(completeHandler.result().getJsonObject(RESULT));
-                                }else{
-                                    handler.fail(-1, completeHandler.cause().getMessage());
-                                }
-                                blockingHandler.complete();
-                            });
-                });
-
-            }
-
-           /* var availability = Utils.checkAvailability(handler.body());
-            var discovery = Utils.spwanProcess(handler.body());
-
-            CompositeFuture.all(availability, discovery).onComplete(future -> {
-                if (future.succeeded()) {
-                    if (discovery.result().getJsonObject(RESULT).getString(STATUS).equals(SUCCESS)) {
-                        handler.reply(discovery.result().getJsonObject(RESULT));
-                    } else {
-                        handler.fail(-1, discovery.result().getJsonObject(RESULT).getString(ERROR));
-                    }
-                } else {
-                    handler.fail(-1, future.cause().getMessage());
-                }
-            });*/
+    public void start(Promise<Void> startPromise){
+        Bootstrap.getVertx().eventBus().<JsonObject>localConsumer(RUN_DISCOVERY_DISCOVERY_ENGINE, handler -> {
+              vertx.executeBlocking(blockingHandler -> {
+                 if(handler.body() != null){
+                     var availability = Utils.checkAvailability(handler.body());
+                     if (availability != null && availability.getString(STATUS).equals(SUCCESS)) {
+                         var portCheck = Utils.checkPort(handler.body());
+                         if (handler.body().getString(STATUS).equals(SUCCESS)) {
+                             var process = Utils.spawnProcess(handler.body().put("category", "discovery"));
+                             if (process.getString(STATUS).equals(SUCCESS)) {
+                                 handler.reply(process.getJsonObject(RESULT));
+                             } else {
+                                 handler.fail(-1, process.getString(ERROR));
+                             }
+                         } else {
+                             handler.fail(-1, portCheck.getString(ERROR));
+                         }
+                     } else {
+                         handler.fail(-1, availability.getString(ERROR));
+                     }
+                 } else{
+                     handler.fail(-1,"handler body is null");
+                 }
+              });
         });
         startPromise.complete();
     }

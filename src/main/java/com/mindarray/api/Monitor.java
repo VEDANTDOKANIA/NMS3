@@ -1,7 +1,6 @@
 package com.mindarray.api;
 
 import com.mindarray.Bootstrap;
-import com.mindarray.NMS.Utils;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
@@ -27,9 +26,6 @@ public class Monitor {
         router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT+"/:id"+"/Polling").handler(this::validate).handler(this::priorityPolling);
     }
 
-
-
-
     private void validate(RoutingContext context) {
         LOGGER.info("routing context path :{} , routing context method : {}",context.normalizedPath(),context.request().method());
         var error = new ArrayList<String>();
@@ -39,14 +35,13 @@ public class Monitor {
         try {
             if ((!(context.request().method().toString().equals("GET"))) && (!(context.request().method().toString().equals("DELETE")))) {
                 var credentials = context.getBodyAsJson();
-                credentials.stream().forEach(value -> {
+                credentials.forEach(value -> {
                     if (credentials.getValue(value.getKey()) instanceof String) {
                         credentials.put(value.getKey(), credentials.getString(value.getKey()).trim());
                     }
                 });
                 context.setBody(credentials.toBuffer());
             }
-
             switch (context.request().method().toString()) {
                 case "POST" -> {
                     if (!(context.getBodyAsJson().containsKey(CREDENTIAL_PROFILE)) || context.getBodyAsJson().getString(CREDENTIAL_PROFILE) == null) {
@@ -123,16 +118,12 @@ public class Monitor {
         });
         future.onComplete(handler ->{
             if(handler.succeeded()){
-                var getQuery = "select metric_id,username,password,community,version,metric_group,time from credential,metric where metric.credential_profile= credential_id and credential_id="+ handler.result().getInteger(CREDENTIAL_PROFILE)+";";
+                var getQuery = "select metric_id,time from credential,metric where metric.credential_profile= credential_id and credential_id="+ handler.result().getInteger(CREDENTIAL_PROFILE)+";";
                 eventBus.<JsonObject>request(PROVISION,handler.result().put(METHOD,"get").put(QUERY,getQuery),result ->{
                    if(result.succeeded()){
-                       var data = new JsonObject();
-                       var pollingData = new JsonObject().put(IP,handler.result().getString(IP)).put(PORT,handler.result().getInteger(PORT))
-                               .put(TYPE,handler.result().getString(TYPE)).put("category","polling");
-                      result.result().body().getJsonArray("result").stream().map(JsonObject::mapFrom).forEach(value->{
-                          data.put(value.getString("metric.id"),value.mergeIn(pollingData));
-                          eventBus.send(PROVISION_SCHEDULER,data);
-                      });
+                      eventBus.send(PROVISION_SCHEDULER,result.result().body());
+                   }else{
+                       LOGGER.error("error occurred :{}",handler.cause().getMessage());
                    }
                 });
             }else{
@@ -140,7 +131,6 @@ public class Monitor {
             }
         });
     }
-
     private void delete(RoutingContext context) {
         var response = context.response();
         var query = "delete from metric where monitor_id =" + context.pathParam("id") + ";";
@@ -156,7 +146,6 @@ public class Monitor {
             }
         });
     }
-
     private void get(RoutingContext context) {
         var query = "select * from monitor";
         var response = context.response();
@@ -172,7 +161,6 @@ public class Monitor {
             }
         });
     }
-
     private void getId(RoutingContext context) {
         var query = "select * from monitor where monitor_id=" + context.pathParam("id") + ";";
         var response = context.response();
@@ -188,17 +176,18 @@ public class Monitor {
             }
         });
     }
-
     private void priorityPolling(RoutingContext context) {
         var response = context.response();
         var id = context.pathParam("id");
         var eventBus = Bootstrap.getVertx().eventBus();
-        var query = "select metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile and monitor.monitor_id=" +id+";";
+        var query = "select monitor.monitor_id,metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile and monitor.monitor_id=" +id+";";
        eventBus.<JsonObject>request(PROVISION,new JsonObject().put(QUERY,query).put(METHOD,"get"),handler ->{
            if(handler.succeeded() && handler.result().body()!=null){
-               handler.result().body().getJsonArray("result").stream().map(JsonObject::mapFrom).forEach(value ->{
-                   eventBus.send(PRIORITY_POLLING,value.put("category","polling"));
-               });
+                var object =handler.result().body().getJsonArray(RESULT);
+                for( int index =0 ;index <object.size() ;index++){
+                    var data = object.getJsonObject(index);
+                    eventBus.send(SCHEDULER_POLLING,data.put("category","polling").put("id",System.currentTimeMillis()));
+                }
                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                response.end(handler.result().body().encodePrettily());
                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");

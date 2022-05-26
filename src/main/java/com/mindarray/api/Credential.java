@@ -32,7 +32,7 @@ public class Credential {
         try {
             if ((!(context.request().method().toString().equals("GET"))) && (!(context.request().method().toString().equals("DELETE")))) {
                 var credentials = context.getBodyAsJson();
-                credentials.stream().forEach(value -> {
+                credentials.forEach(value -> {
                     if (credentials.getValue(value.getKey()) instanceof String) {
                         credentials.put(value.getKey(), credentials.getString(value.getKey()).trim());
                     }

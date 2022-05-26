@@ -9,77 +9,53 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.mindarray.NMS.Constant.*;
 
 public class Poller extends AbstractVerticle {
-    private static final Logger LOGGER = LoggerFactory.getLogger(MetricScheduler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Poller.class);
+    HashMap<String,String> pingData = new HashMap<>();
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
-        HashMap<String,String> pingData = new HashMap<>();
         var eventBus = vertx.eventBus();
-       ConcurrentLinkedQueue<JsonObject>  queue = new ConcurrentLinkedQueue<>();
+        WorkerExecutor executor = Bootstrap.getVertx().createSharedWorkerExecutor("poller-pool", 10, 60000, TimeUnit.MILLISECONDS);
+
+
         eventBus.<JsonObject>localConsumer(SCHEDULER_POLLING,handler->{
             if(handler.body()!=null){
-                queue.add(handler.body());
-            }else{
-                LOGGER.error("error occurred :{}","scheduling polling handler body is null");
-            }
-        });
-        eventBus.<JsonObject>localConsumer(PRIORITY_POLLING,handler ->{
-            if(handler.body()!=null){
-                queue.add(handler.body());
-            }else{
-                LOGGER.error("error occurred :{}","scheduling polling handler body is null");
-            }
-        });
-
-
-        new Thread(() -> {
-          //  AtomicInteger poolSize = new AtomicInteger(10);
-            WorkerExecutor executor = Bootstrap.getVertx().createSharedWorkerExecutor("poller-pool", 10, 30000, TimeUnit.MILLISECONDS);
-            while (true){
-                //while (poolSize != 0){}
-                    if (!queue.isEmpty()) {
-                        var polling = queue.poll();
-                       // poolSize.getAndDecrement();
-                        if (polling.getString("metric.group").equals("ping")) {
-                            executor.executeBlocking( handler ->{
-                                Utils.checkAvailability(polling).onComplete(result -> {
-                                    if (result.succeeded()) {
-                                        pingData.put(polling.getString(IP), "up");
-                                    } else {
-                                        pingData.put(polling.getString(IP), "down");
-                                    }
-                                    handler.complete();
-                                  // poolSize.set(poolSize.incrementAndGet());
-                                });
+                if (handler.body().getString("metric.group").equals("ping")) {
+                    executor.executeBlocking( blockingHandler ->{
+                      if( Utils.checkAvailability(handler.body()).getString(STATUS).equals(SUCCESS)){
+                          pingData.put(handler.body().getString(IP),"up");
+                      }else{
+                          pingData.put(handler.body().getString(IP),"down");
+                           }
+                            blockingHandler.complete();
+                        });
+                } else {
+                    if (!pingData.containsKey(handler.body().getString(IP)) || pingData.get(handler.body().getString(IP)).equals("up")) {
+                        executor.executeBlocking( blockingHandler ->{
+                            var result =Utils.spawnProcess(handler.body());
+                           if( result.getString(STATUS).equals(SUCCESS)){
+                               var data = new JsonObject().put(TABLE,"polling").put(MONITOR_ID,result.getString(MONITOR_ID))
+                                               .put("id",handler.body().getString("id")).put(METRIC_GROUP,handler.body().getString(METRIC_GROUP))
+                                               .put("object",result.getJsonObject(RESULT));
+                               eventBus.send(POLLER_DATABASE,data);
+                               LOGGER.info("Polling :{}", result.getJsonObject(RESULT));
+                           }else{
+                               LOGGER.error("error occurred :{}", result.getValue(ERROR));
+                           }
+                              blockingHandler.complete();
                             });
-                        } else {
-                            if (!pingData.containsKey(polling.getString(IP)) || pingData.get(polling.getString(IP)).equals("up")) {
-                                executor.executeBlocking( handler ->{
-                                    Utils.spwanProcess(polling).onComplete(result -> {
-                                        if (result.succeeded()) {
-                                            LOGGER.info("Polling :{}", result.result());
-                                        } else {
-                                            LOGGER.info("Polling :{}", result.cause().getMessage());
-                                        }
-                                        handler.complete();
-                                      // poolSize.set(poolSize.incrementAndGet());
-                                    });
-                                });
-                            } else {
-                                LOGGER.info("ip is down :{}", polling.getString(IP));
-                            }
-                        }
+                    } else {
+                        LOGGER.info("ip is down :{}", handler.body().getString(IP));
                     }
-                }
-
-        }).start();
+            }
+            }else{
+                LOGGER.error("error occurred :{}","scheduling polling handler body is null");
+            }
+        });
         startPromise.complete();
     }
 }

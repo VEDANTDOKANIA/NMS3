@@ -35,6 +35,7 @@ public class Constant {
     public static final String DISCOVERY_DATABASE_CHECK_MULTIPLE = "discoveryCheckMultiple";
     public static final String PROVISION_SCHEDULER ="scheduler";
     public static final String SCHEDULER_POLLING ="scheduler_polling";
+    public static final String POLLER_DATABASE ="poller_database";
 
     // Json constants
     public static final String IP = "ip";

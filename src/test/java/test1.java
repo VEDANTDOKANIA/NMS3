@@ -8,7 +8,6 @@ public class test1 {
         var array = new ArrayList<>();
         for(int i =0;i<10;i++){
             while (true){
-                System.out.println("Enter value " + i);
                 var value = scn.next();
                 var flag = false;
                 try{
@@ -23,6 +22,5 @@ public class test1 {
                 }
             }
         }
-        System.out.println(array);
     }
 }

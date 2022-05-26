@@ -10,6 +10,8 @@ public class ProcessHandler extends NuAbstractProcessHandler {
     private int statusCode = 0;
     private String data = null;
 
+    StringBuilder stringBuilder = new StringBuilder();
+
     @Override
     public void onStart(NuProcess nuProcess) {
         this.nuProcess = nuProcess;
@@ -26,24 +28,27 @@ public class ProcessHandler extends NuAbstractProcessHandler {
         if (!closed) {
             byte[] bytes = new byte[buffer.remaining()];
             buffer.get(bytes);
-            data = new String(bytes);
+            data =new String(bytes);
+            stringBuilder.append(data);
             nuProcess.closeStdin(true);
         }
     }
 
     @Override
     public void onStderr(ByteBuffer buffer, boolean closed) {
-        if (!closed) {
-            var bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            data = new String(bytes);
-            nuProcess.closeStdin(true);
-        }
+            if (!closed) {
+                var bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                data = new String(bytes);
+                stringBuilder.append(data);
+                nuProcess.closeStdin(true);
+            }
+
 
     }
 
     public String output() {
-        return data;
+        return stringBuilder.toString();
     }
 
 }
