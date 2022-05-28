@@ -6,12 +6,15 @@ public class Constant {
     public static final String MONITOR_ENDPOINT = "/Monitor";
     public static final String DISCOVERY_ENDPOINT = "/Discovery";
     public static final String CREDENTIAL_ENDPOINT = "/Credential";
+    public static final String METRIC_ENDPOINT = "/Metric";
     public static final String HEADER_TYPE = "application/json";
     public static final String CONTENT_TYPE = "content-type";
 
     //Event Bus consumer
     public static final String PROVISION = "provision";
     public static final String DATABASE = "Database";
+
+    public static final String METRIC_SCHEDULER_UPDATE="metric_scheduler_update";
     public static final String INITIAL_POLL_DATA="initial_poll_data";
 
     public static final String PRIORITY_POLLING ="priorityPolling";
@@ -36,6 +39,8 @@ public class Constant {
     public static final String PROVISION_SCHEDULER ="scheduler";
     public static final String SCHEDULER_POLLING ="scheduler_polling";
     public static final String POLLER_DATABASE ="poller_database";
+
+    public static final String MONITOR_SCHEDULER_DELETE ="monitor_scheduler_delete";
 
     // Json constants
     public static final String IP = "ip";
@@ -64,6 +69,9 @@ public class Constant {
 
     //Monitor Json
     public static final String MONITOR_ID = "monitor.id";
+    public static final String METRIC_ID ="metric.id";
+
+    public static final String TIME ="time";
 
 
     // Constant Messages

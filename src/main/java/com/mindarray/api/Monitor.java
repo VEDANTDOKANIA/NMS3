@@ -62,7 +62,7 @@ public class Monitor {
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(ERROR, error).encodePrettily());
-                        LOGGER.error("Error occurred {}", error);
+                        LOGGER.error("error occurred {}", error);
 
                     }
 
@@ -133,17 +133,38 @@ public class Monitor {
     }
     private void delete(RoutingContext context) {
         var response = context.response();
+        var eventBus = Bootstrap.getVertx().eventBus();
+       Promise<JsonObject> promise = Promise.promise();
+       var future = promise.future();
         var query = "delete from metric where monitor_id =" + context.pathParam("id") + ";";
-        Bootstrap.getVertx().eventBus().request(PROVISION, new JsonObject().put(QUERY, query).put(METHOD, DATABASE_DELETE).put(MONITOR_ID, context.pathParam("id")), handler -> {
-            if (handler.succeeded() && handler.result().body() != null) {
-                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
-                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
+
+        var metricDelete = "select metric_id from metric where monitor_id=" + context.pathParam("id") +";";
+        eventBus.<JsonObject>request(DATABASE,new JsonObject().put(METHOD,GET_QUERY).put(QUERY,metricDelete),handler ->{
+            if(handler.succeeded()){
+                promise.complete(handler.result().body());
             } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                promise.fail(handler.cause().getMessage());
                 LOGGER.error("error occurred :{}",handler.cause().getMessage());
             }
+        });
+        future.onComplete(completeHandler ->{
+            if(completeHandler.succeeded()){
+                eventBus.request(PROVISION, new JsonObject().put(QUERY, query).put(METHOD, DATABASE_DELETE).put(MONITOR_ID, context.pathParam("id")), handler -> {
+                    if (handler.succeeded() && handler.result().body() != null) {
+                        response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
+                        eventBus.send(MONITOR_SCHEDULER_DELETE,completeHandler.result());
+                        LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
+                    } else {
+                        response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                        LOGGER.error("error occurred :{}",handler.cause().getMessage());
+                    }
+                });
+            }else{
+                LOGGER.error("error occurres :{}",completeHandler.cause().getMessage());
+            }
+
         });
     }
     private void get(RoutingContext context) {

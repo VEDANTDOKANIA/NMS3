@@ -14,7 +14,7 @@ public class DiscoveryEngine extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise){
         Bootstrap.getVertx().eventBus().<JsonObject>localConsumer(RUN_DISCOVERY_DISCOVERY_ENGINE, handler -> {
-              vertx.executeBlocking(blockingHandler -> {
+              vertx.<JsonObject>executeBlocking(blockingHandler -> {
                  if(handler.body() != null){
                      var availability = Utils.checkAvailability(handler.body());
                      if (availability != null && availability.getString(STATUS).equals(SUCCESS)) {
@@ -22,19 +22,25 @@ public class DiscoveryEngine extends AbstractVerticle {
                          if (handler.body().getString(STATUS).equals(SUCCESS)) {
                              var process = Utils.spawnProcess(handler.body().put("category", "discovery"));
                              if (process.getString(STATUS).equals(SUCCESS)) {
-                                 handler.reply(process.getJsonObject(RESULT));
+                                 blockingHandler.complete(process.getJsonObject(RESULT));
                              } else {
-                                 handler.fail(-1, process.getString(ERROR));
+                                 blockingHandler.fail( process.getString(ERROR));
                              }
                          } else {
-                             handler.fail(-1, portCheck.getString(ERROR));
+                             blockingHandler.fail( portCheck.getString(ERROR));
                          }
                      } else {
-                         handler.fail(-1, availability.getString(ERROR));
+                         blockingHandler.fail( availability.getString(ERROR));
                      }
                  } else{
-                     handler.fail(-1,"handler body is null");
+                     blockingHandler.fail("handler body is null");
                  }
+              }).onComplete(completeHandler ->{
+                  if(completeHandler.succeeded()){
+                      handler.reply(completeHandler.result());
+                  }else{
+                      handler.fail(-1,completeHandler.cause().getMessage());
+                  }
               });
         });
         startPromise.complete();

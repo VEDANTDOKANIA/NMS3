@@ -19,13 +19,10 @@ public class Poller extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
         var eventBus = vertx.eventBus();
-        WorkerExecutor executor = Bootstrap.getVertx().createSharedWorkerExecutor("poller-pool", 10, 60000, TimeUnit.MILLISECONDS);
-
-
         eventBus.<JsonObject>localConsumer(SCHEDULER_POLLING,handler->{
             if(handler.body()!=null){
                 if (handler.body().getString("metric.group").equals("ping")) {
-                    executor.executeBlocking( blockingHandler ->{
+                    Bootstrap.getVertx().executeBlocking( blockingHandler ->{
                       if( Utils.checkAvailability(handler.body()).getString(STATUS).equals(SUCCESS)){
                           pingData.put(handler.body().getString(IP),"up");
                       }else{
@@ -35,7 +32,7 @@ public class Poller extends AbstractVerticle {
                         });
                 } else {
                     if (!pingData.containsKey(handler.body().getString(IP)) || pingData.get(handler.body().getString(IP)).equals("up")) {
-                        executor.executeBlocking( blockingHandler ->{
+                        Bootstrap.getVertx().executeBlocking( blockingHandler ->{
                             var result =Utils.spawnProcess(handler.body());
                            if( result.getString(STATUS).equals(SUCCESS)){
                                var data = new JsonObject().put(TABLE,"polling").put(MONITOR_ID,result.getString(MONITOR_ID))

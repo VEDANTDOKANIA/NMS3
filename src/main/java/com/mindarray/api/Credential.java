@@ -106,9 +106,13 @@ public class Credential {
                                 context.next();
                                 LOGGER.info("validation performed successfully :{}",context.request().method());
                             } else {
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                                LOGGER.error(handler.cause().getMessage());
+                                if(handler.cause().getMessage().equals("[credential_profile is not unique]")){
+                                    response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "credential already exists in metric table").encodePrettily());
+                                }else{
+                                    response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                                }
                             }
                         });
                     } else {
@@ -178,7 +182,6 @@ public class Credential {
     }
     private void update(RoutingContext context) {
         var response = context.response();
-
         Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_UPDATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
             if (handler.succeeded()) {
                 response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -200,8 +203,8 @@ public class Credential {
                 response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
                 LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
             } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                    response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
                 LOGGER.error("error occurred: {}",handler.cause().getMessage());
             }
 

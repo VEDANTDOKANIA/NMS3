@@ -104,7 +104,8 @@ public class DatabaseEngine extends AbstractVerticle {
                 case CREDENTIAL_DATABASE_CHECK_ID -> {
                     var checkId = check(CREDENTIAL_TABLE, "credential_id", handler.body().getString(CREDENTIAL_ID));
                     var checkProfile = check(DISCOVERY_TABLE, "credential_profile", handler.body().getString(CREDENTIAL_ID));
-                    CompositeFuture.join(checkId, checkProfile).onComplete(completeHandler -> {
+                    var checkMonitor = check(METRIC_TABLE,"credential_profile",handler.body().getString(CREDENTIAL_ID));
+                    CompositeFuture.join(checkId, checkProfile,checkMonitor).onComplete(completeHandler -> {
                         if (completeHandler.succeeded()) {
                             handler.reply(handler.body());
                         } else {
@@ -229,6 +230,7 @@ public class DatabaseEngine extends AbstractVerticle {
                 }
             }
         });
+
         eventBus.<JsonObject>localConsumer(POLLER_DATABASE,handler ->{
             if(handler.body() !=null){
                 insert(handler.body().getString(TABLE),handler.body()).onComplete( result ->{

@@ -4,17 +4,12 @@ import com.mindarray.Bootstrap;
 import com.mindarray.ProcessHandler;
 import com.zaxxer.nuprocess.NuProcess;
 import com.zaxxer.nuprocess.NuProcessBuilder;
-import io.vertx.core.Future;
-import io.vertx.core.Promise;
-import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetClient;
-import io.vertx.core.net.NetServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -121,29 +116,85 @@ public class Utils {
 
     public static JsonArray metricGroup(String type) {
         var metric = new JsonArray();
-        switch (type) {
-            case "linux" -> {
-                metric.add(new JsonObject().put("metric.group", "cpu").put("time", 50000));
-                metric.add(new JsonObject().put("metric.group", "disk").put("time", 60000));
-                metric.add(new JsonObject().put("metric.group", "memory").put("time", 80000));
-                metric.add(new JsonObject().put("metric.group", "process").put("time", 50000));
-                metric.add(new JsonObject().put("metric.group", "system").put("time", 90000));
-                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
-            }
-            case "windows" -> {
-                metric.add(new JsonObject().put("metric.group", "cpu").put("time", 80000));
-                metric.add(new JsonObject().put("metric.group", "disk").put("time", 100000));
-                metric.add(new JsonObject().put("metric.group", "memory").put("time", 110000));
-                metric.add(new JsonObject().put("metric.group", "process").put("time", 80000));
-                metric.add(new JsonObject().put("metric.group", "system").put("time", 120000));
-                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
-            }
-            case "snmp" -> {
-                metric.add(new JsonObject().put("metric.group", "system").put("time", 80000));
-                metric.add(new JsonObject().put("metric.group", "interface").put("time", 50000));
-                metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
-            }
+        if(type.equals("linux")){
+            metric.add(new JsonObject().put("metric.group", "cpu").put("time", 60000));
+            metric.add(new JsonObject().put("metric.group", "disk").put("time", 70000));
+            metric.add(new JsonObject().put("metric.group", "memory").put("time", 80000));
+            metric.add(new JsonObject().put("metric.group", "process").put("time", 60000));
+            metric.add(new JsonObject().put("metric.group", "system").put("time", 100000));
+            metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
+        }else if(type.equals("windows")){
+            metric.add(new JsonObject().put("metric.group", "cpu").put("time", 80000));
+            metric.add(new JsonObject().put("metric.group", "disk").put("time", 100000));
+            metric.add(new JsonObject().put("metric.group", "memory").put("time", 110000));
+            metric.add(new JsonObject().put("metric.group", "process").put("time", 80000));
+            metric.add(new JsonObject().put("metric.group", "system").put("time", 120000));
+            metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
+        }else if(type.equals("snmp")){
+            metric.add(new JsonObject().put("metric.group", "system").put("time", 80000));
+            metric.add(new JsonObject().put("metric.group", "interface").put("time", 70000));
+            metric.add(new JsonObject().put("metric.group","ping").put("time",60000));
         }
         return metric;
+    }
+
+    public static int[] groupTime(String type, String metricGroup){
+        int[] time = new int[2];
+
+        if(type.equals("linux")){
+            if(metricGroup.equals("cpu")){
+                time[0] = 60000;
+                time[1] = 86300000;
+            }else if(metricGroup.equals("disk")){
+                time[0] = 70000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("memory")){
+                time[0] = 80000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("process")){
+                time[0] = 90000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("system") ){
+                time[0] = 100000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("ping")){
+                time[0] = 60000;
+                time[1] = 86400000;
+            }
+        } else if (type.equals("windows")) {
+            if(metricGroup.equals("cpu")){
+                time[0] = 80000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("disk")){
+                time[0] = 100000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("memory")){
+                time[0] = 110000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("process")){
+                time[0] = 80000;
+                time[1] = 86300000;
+            }else if(metricGroup.equals("system")){
+                time[0] = 120000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("ping")){
+                time[0] = 60000;
+                time[1] = 86400000;
+            }
+
+        } else if(type.equals("snmp")){
+            if(metricGroup.equals("system")){
+                time[0] = 80000;
+                time[1] = 86400000;
+            }else if(metricGroup.equals("interface")){
+                time[0] = 70000;
+                time[1] = 86400000;
+            } else if (metricGroup.equals("ping")) {
+                time[0] = 60000;
+                time[1] = 86400000;
+            }
+
+        }
+    return time;
     }
 }
