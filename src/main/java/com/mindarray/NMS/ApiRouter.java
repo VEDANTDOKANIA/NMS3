@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ApiRouter extends AbstractVerticle {
-    // * bbyby
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiRouter.class);
 
     @Override

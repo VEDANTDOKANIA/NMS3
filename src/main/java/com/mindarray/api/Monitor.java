@@ -1,6 +1,7 @@
 package com.mindarray.api;
 
 import com.mindarray.Bootstrap;
+import com.mindarray.NMS.Utils;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
@@ -23,47 +24,52 @@ public class Monitor {
         router.route().method(HttpMethod.DELETE).path(MONITOR_ENDPOINT + "/:id").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT).handler(this::get);
         router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT + "/:id").handler(this::validate).handler(this::getId);
-        router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT+"/:id"+"/Polling").handler(this::validate).handler(this::priorityPolling);
+        router.route().method(HttpMethod.GET).path(MONITOR_ENDPOINT + "/:id" + "/Polling").handler(this::validate).handler(this::priorityPolling);
     }
 
     private void validate(RoutingContext context) {
-        LOGGER.info("routing context path :{} , routing context method : {}",context.normalizedPath(),context.request().method());
+        LOGGER.info("routing context path :{} , routing context method : {}", context.normalizedPath(), context.request().method());
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         HttpServerResponse response = context.response();
         //trim data
         try {
             if ((!(context.request().method().toString().equals("GET"))) && (!(context.request().method().toString().equals("DELETE")))) {
-                var credentials = context.getBodyAsJson();
-                credentials.forEach(value -> {
-                    if (credentials.getValue(value.getKey()) instanceof String) {
-                        credentials.put(value.getKey(), credentials.getString(value.getKey()).trim());
+                var credentials = new JsonObject();
+                var keyList = Utils.keyList("monitor");
+                context.getBodyAsJson().forEach(value -> {
+                    if (keyList.contains(value.getKey())) {
+                        if (context.getBodyAsJson().getValue(value.getKey()) instanceof String) {
+                            credentials.put(value.getKey(), context.getBodyAsJson().getString(value.getKey()).trim());
+                        }else{
+                            credentials.put(value.getKey(), context.getBodyAsJson().getValue(value.getKey()));
+                        }
                     }
+
                 });
                 context.setBody(credentials.toBuffer());
             }
             switch (context.request().method().toString()) {
                 case "POST" -> {
                     if (!(context.getBodyAsJson().containsKey(CREDENTIAL_PROFILE)) || context.getBodyAsJson().getString(CREDENTIAL_PROFILE) == null) {
-                        error.add("Credential profile is null");
+                        error.add("credential profile is null");
                     }
                     if (!(context.getBodyAsJson().containsKey(IP)) || context.getBodyAsJson().getString(IP) == null) {
-                        error.add("IP is null");
+                        error.add("ip is null");
                     }
                     if (!(context.getBodyAsJson().containsKey(PORT)) || context.getBodyAsJson().getString(PORT) == null) {
                         error.add("port is null");
                     }
                     if (!(context.getBodyAsJson().containsKey(TYPE)) || context.getBodyAsJson().getString(TYPE) == null) {
-                        error.add("Type is null");
+                        error.add("type is null");
                     }
                     if (error.isEmpty()) {
                         context.next();
-                        LOGGER.info("validation performed successfully :{}",context.request().method());
+                        LOGGER.info("validation performed successfully :{}", context.request().method());
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(ERROR, error).encodePrettily());
                         LOGGER.error("error occurred {}", error);
-
                     }
 
                 }
@@ -76,7 +82,7 @@ public class Monitor {
                         eventBus.<JsonObject>request(PROVISION, new JsonObject().put(MONITOR_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, MONITOR_TABLE), handler -> {
                             if (handler.succeeded()) {
                                 context.next();
-                                LOGGER.info("validation performed successfully :{}",context.request().method());
+                                LOGGER.info("validation performed successfully :{}", context.request().method());
                             } else {
                                 response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                                 response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -90,136 +96,188 @@ public class Monitor {
                 }
             }
         } catch (Exception exception) {
-            response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
             LOGGER.error(exception.getMessage());
         }
     }
+
     private void create(RoutingContext context) {
         var eventBus = Bootstrap.getVertx().eventBus();
-        Promise<JsonObject> promise = Promise.promise();
-        Future<JsonObject> future = promise.future();
         var response = context.response();
-        var query = "select discovery_id from discovery where JSON_SEARCH(discovery_result,\"one\",\"success\") and credential_profile=\"" + context.getBodyAsJson().getString(CREDENTIAL_PROFILE) + "\" and "
-                + " discovery.ip= \"" + context.getBodyAsJson().getString(IP) + "\" and " + "discovery.port=" + context.getBodyAsJson().getInteger(PORT) +
-                " and discovery.type =\"" + context.getBodyAsJson().getString(TYPE) + "\" ;";
-        eventBus.<JsonObject>request(PROVISION, new JsonObject().put(METHOD, "runProvision").put(QUERY, query).mergeIn(context.getBodyAsJson()), handler -> {
-            if (handler.succeeded() && handler.result().body() != null) {
-                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "your unique monitor id is "+handler.result().body().getString("id")).encodePrettily());
-                promise.complete(context.getBodyAsJson().put("id",handler.result().body().getString("id")));
-                LOGGER.info(" context :{}, status :{} , message :{}",context.getBodyAsJson(),"success",handler.result().body().getString(MESSAGE));
-            } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                promise.fail("provision failed");
-                LOGGER.error("error occurred :{}",handler.cause().getMessage());
-            }
-        });
-        future.onComplete(handler ->{
-            if(handler.succeeded()){
-                var getQuery = "select metric_id,time from credential,metric where metric.credential_profile= credential_id and credential_id="+ handler.result().getInteger(CREDENTIAL_PROFILE)+";";
-                eventBus.<JsonObject>request(PROVISION,handler.result().put(METHOD,"get").put(QUERY,getQuery),result ->{
-                   if(result.succeeded()){
-                      eventBus.send(PROVISION_SCHEDULER,result.result().body());
-                   }else{
-                       LOGGER.error("error occurred :{}",handler.cause().getMessage());
-                   }
-                });
-            }else{
-                LOGGER.error("error occurred :{}",handler.cause().getMessage());
-            }
-        });
-    }
-    private void delete(RoutingContext context) {
-        var response = context.response();
-        var eventBus = Bootstrap.getVertx().eventBus();
-       Promise<JsonObject> promise = Promise.promise();
-       var future = promise.future();
-        var query = "delete from metric where monitor_id =" + context.pathParam("id") + ";";
-
-        var metricDelete = "select metric_id from metric where monitor_id=" + context.pathParam("id") +";";
-        eventBus.<JsonObject>request(DATABASE,new JsonObject().put(METHOD,GET_QUERY).put(QUERY,metricDelete),handler ->{
-            if(handler.succeeded()){
-                promise.complete(handler.result().body());
-            } else {
-                promise.fail(handler.cause().getMessage());
-                LOGGER.error("error occurred :{}",handler.cause().getMessage());
-            }
-        });
-        future.onComplete(completeHandler ->{
-            if(completeHandler.succeeded()){
-                eventBus.request(PROVISION, new JsonObject().put(QUERY, query).put(METHOD, DATABASE_DELETE).put(MONITOR_ID, context.pathParam("id")), handler -> {
+        try {
+            Promise<JsonObject> promise = Promise.promise();
+            Future<JsonObject> future = promise.future();
+            var query = "select discovery_id from discovery where JSON_SEARCH(discovery_result,\"one\",\"success\") and credential_profile=\"" + context.getBodyAsJson().getString(CREDENTIAL_PROFILE) + "\" and "
+                    + " discovery.ip= \"" + context.getBodyAsJson().getString(IP) + "\" and " + "discovery.port=" + context.getBodyAsJson().getInteger(PORT) +
+                    " and discovery.type =\"" + context.getBodyAsJson().getString(TYPE) + "\" ;";
+            eventBus.<JsonObject>request(PROVISION, new JsonObject().put(METHOD, "runProvision").put(QUERY, query).mergeIn(context.getBodyAsJson()), handler -> {
+                try {
                     if (handler.succeeded() && handler.result().body() != null) {
                         response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                        response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
-                        eventBus.send(MONITOR_SCHEDULER_DELETE,completeHandler.result());
-                        LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
+                        response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "your unique monitor id is " + handler.result().body().getString("id")).encodePrettily());
+                        promise.complete(context.getBodyAsJson().put("id", handler.result().body().getString("id")));
+                        LOGGER.info(" context :{}, status :{} , message :{}", context.getBodyAsJson(), "success", handler.result().body().getString(MESSAGE));
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                        LOGGER.error("error occurred :{}",handler.cause().getMessage());
+                        promise.fail("provision failed");
+                        LOGGER.error("error occurred :{}", handler.cause().getMessage());
                     }
-                });
-            }else{
-                LOGGER.error("error occurres :{}",completeHandler.cause().getMessage());
-            }
+                } catch (Exception exception) {
+                    response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+                    LOGGER.error(exception.getMessage());
+                }
+            });
+            future.onComplete(handler -> {
+                if (handler.succeeded()) {
+                    var getQuery = "select metric_id,time from credential,metric where metric.credential_profile= credential_id and credential_id=" + handler.result().getInteger(CREDENTIAL_PROFILE) + ";";
+                    eventBus.<JsonObject>request(PROVISION, handler.result().put(METHOD, "get").put(QUERY, getQuery), result -> {
+                        if (result.succeeded() && result.result().body() != null) {
+                            eventBus.send(PROVISION_SCHEDULER, result.result().body());
+                        } else {
+                            LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                        }
+                    });
+                } else {
+                    LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                }
+            });
+        } catch (Exception exception) {
+            response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            response.end(new JsonObject().put(MESSAGE, exception.getMessage()).put(STATUS, FAIL).encodePrettily());
+            LOGGER.error("error occurred :{}", exception.getMessage());
+        }
 
-        });
     }
+
+    private void delete(RoutingContext context) {
+        var response = context.response();
+        var eventBus = Bootstrap.getVertx().eventBus();
+        try {
+            Promise<JsonObject> promise = Promise.promise();
+            var future = promise.future();
+            var query = "delete from metric where monitor_id =" + context.pathParam("id") + ";";
+            var metricDelete = "select metric_id from metric where monitor_id=" + context.pathParam("id") + ";";
+            eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put(QUERY, metricDelete), handler -> {
+                if (handler.succeeded() && handler.result().body() != null) {
+                    promise.complete(handler.result().body());
+                } else {
+                    promise.fail(handler.cause().getMessage());
+                    LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                }
+            });
+            future.onComplete(completeHandler -> {
+                if (completeHandler.succeeded()) {
+                    eventBus.request(PROVISION, new JsonObject().put(QUERY, query).put(METHOD, DATABASE_DELETE).put(MONITOR_ID, context.pathParam("id")), handler -> {
+                        if (handler.succeeded() && handler.result().body() != null) {
+                            response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                            response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
+                            eventBus.send(MONITOR_SCHEDULER_DELETE, completeHandler.result());
+                            LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                        } else {
+                            response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                            LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                        }
+                    });
+                } else {
+                    LOGGER.error("error occurres :{}", completeHandler.cause().getMessage());
+                }
+
+            });
+        } catch (Exception exception) {
+            response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
+            LOGGER.error("error occurred :{}",exception.getMessage());
+        }
+
+    }
+
     private void get(RoutingContext context) {
         var query = "select * from monitor";
         var response = context.response();
         Bootstrap.getVertx().eventBus().<JsonObject>request(PROVISION, new JsonObject().put(METHOD, DATABASE_GET).put(QUERY, query), handler -> {
-            if (handler.succeeded() && handler.result().body() != null) {
-                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(handler.result().body().encodePrettily());
-                LOGGER.info("status :{}","success");
-            } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error("error occurred :{}",handler.cause().getMessage());
+            try {
+                if (handler.succeeded() && handler.result().body() != null) {
+                    response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(handler.result().body().encodePrettily());
+                    LOGGER.info("status :{}", "success");
+                } else {
+                    response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
+                    LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                }
+            } catch (Exception exception) {
+                response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+                LOGGER.error(exception.getMessage());
             }
+
         });
+
+
     }
+
     private void getId(RoutingContext context) {
-        var query = "select * from monitor where monitor_id=" + context.pathParam("id") + ";";
         var response = context.response();
+        var query = "select * from monitor where monitor_id=" + context.pathParam("id") + ";";
         Bootstrap.getVertx().eventBus().<JsonObject>request(PROVISION, new JsonObject().put(METHOD, DATABASE_GET).put(QUERY, query), handler -> {
-            if (handler.succeeded() && handler.result().body() != null) {
-                response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(handler.result().body().encodePrettily());
-                LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
-            } else {
-                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                LOGGER.error("error occurred :{}",handler.cause().getMessage());
+            try {
+                if (handler.succeeded() && handler.result().body() != null) {
+                    response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(handler.result().body().encodePrettily());
+                    LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                } else {
+                    response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
+                    LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                }
+            } catch (Exception exception) {
+                response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+                LOGGER.error(exception.getMessage());
             }
+
         });
+
+
     }
+
     private void priorityPolling(RoutingContext context) {
         var response = context.response();
-        var id = context.pathParam("id");
-        var eventBus = Bootstrap.getVertx().eventBus();
-        var query = "select monitor.monitor_id,metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile and monitor.monitor_id=" +id+";";
-       eventBus.<JsonObject>request(PROVISION,new JsonObject().put(QUERY,query).put(METHOD,"get"),handler ->{
-           if(handler.succeeded() && handler.result().body()!=null){
-                var object =handler.result().body().getJsonArray(RESULT);
-                for( int index =0 ;index <object.size() ;index++){
-                    var data = object.getJsonObject(index);
-                    eventBus.send(SCHEDULER_POLLING,data.put("category","polling").put("id",System.currentTimeMillis()));
+        try {
+            var id = context.pathParam("id");
+            var eventBus = Bootstrap.getVertx().eventBus();
+            var query = "select monitor.monitor_id,metric_id,metric_group,time,type,ip,port,username,password,community,version from credential,monitor,metric where monitor.monitor_id = metric.monitor_id and credential.credential_id=metric.credential_profile and monitor.monitor_id=" + id + ";";
+            eventBus.<JsonObject>request(PROVISION, new JsonObject().put(QUERY, query).put(METHOD, "get"), handler -> {
+                try {
+                    if (handler.succeeded() && handler.result().body() != null) {
+                        var object = handler.result().body().getJsonArray(RESULT);
+                        for (int index = 0; index < object.size(); index++) {
+                            var data = object.getJsonObject(index);
+                            eventBus.send(SCHEDULER_POLLING, data.put("category", "polling").put("id", System.currentTimeMillis()));
+                        }
+                        response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(handler.result().body().encodePrettily());
+                        LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                    } else {
+                        response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                        response.end(handler.cause().getMessage());
+                        LOGGER.error("error occurred :{}", handler.cause().getMessage());
+                    }
+                } catch (Exception exception) {
+                    response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+                    LOGGER.error(exception.getMessage());
                 }
-               response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-               response.end(handler.result().body().encodePrettily());
-               LOGGER.info("context :{}, status :{}",context.pathParam("id"),"success");
-           }else{
-               response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-               response.end(handler.cause().getMessage());
-               LOGGER.error("error occurred :{}",handler.cause().getMessage());
-           }
-       });
 
-
-
+            });
+        } catch (Exception exception) {
+            response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
+            LOGGER.error(exception.getMessage());
+        }
     }
 }

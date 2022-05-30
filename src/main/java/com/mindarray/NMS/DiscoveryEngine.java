@@ -14,34 +14,39 @@ public class DiscoveryEngine extends AbstractVerticle {
     @Override
     public void start(Promise<Void> startPromise){
         Bootstrap.getVertx().eventBus().<JsonObject>localConsumer(RUN_DISCOVERY_DISCOVERY_ENGINE, handler -> {
-              vertx.<JsonObject>executeBlocking(blockingHandler -> {
-                 if(handler.body() != null){
-                     var availability = Utils.checkAvailability(handler.body());
-                     if (availability != null && availability.getString(STATUS).equals(SUCCESS)) {
-                         var portCheck = Utils.checkPort(handler.body());
-                         if (handler.body().getString(STATUS).equals(SUCCESS)) {
-                             var process = Utils.spawnProcess(handler.body().put("category", "discovery"));
-                             if (process.getString(STATUS).equals(SUCCESS)) {
-                                 blockingHandler.complete(process.getJsonObject(RESULT));
-                             } else {
-                                 blockingHandler.fail( process.getString(ERROR));
-                             }
-                         } else {
-                             blockingHandler.fail( portCheck.getString(ERROR));
-                         }
-                     } else {
-                         blockingHandler.fail( availability.getString(ERROR));
-                     }
-                 } else{
-                     blockingHandler.fail("handler body is null");
-                 }
-              }).onComplete(completeHandler ->{
-                  if(completeHandler.succeeded()){
-                      handler.reply(completeHandler.result());
-                  }else{
-                      handler.fail(-1,completeHandler.cause().getMessage());
-                  }
-              });
+            try {
+                vertx.<JsonObject>executeBlocking(blockingHandler -> {
+                    if(handler.body() != null){
+                        var availability = Utils.checkAvailability(handler.body());
+                        if (availability != null && availability.getString(STATUS).equals(SUCCESS)) {
+                            var portCheck = Utils.checkPort(handler.body());
+                            if (handler.body().getString(STATUS).equals(SUCCESS)) {
+                                var process = Utils.spawnProcess(handler.body().put("category", "discovery"));
+                                if (process.getString(STATUS).equals(SUCCESS)) {
+                                    blockingHandler.complete(process.getJsonObject(RESULT));
+                                } else {
+                                    blockingHandler.fail( process.getString(ERROR));
+                                }
+                            } else {
+                                blockingHandler.fail( portCheck.getString(ERROR));
+                            }
+                        } else {
+                            blockingHandler.fail( availability.getString(ERROR));
+                        }
+                    } else{
+                        blockingHandler.fail("handler body is null");
+                    }
+                }).onComplete(completeHandler ->{
+                    if(completeHandler.succeeded()){
+                        handler.reply(completeHandler.result());
+                    }else{
+                        handler.fail(-1,completeHandler.cause().getMessage());
+                    }
+                });
+            }catch (Exception exception){
+                handler.fail(-1,exception.getMessage());
+            }
+
         });
         startPromise.complete();
     }

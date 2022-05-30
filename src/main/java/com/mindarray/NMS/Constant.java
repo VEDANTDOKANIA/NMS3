@@ -14,12 +14,12 @@ public class Constant {
     public static final String PROVISION = "provision";
     public static final String DATABASE = "Database";
 
-    public static final String METRIC_SCHEDULER_UPDATE="metric_scheduler_update";
-    public static final String INITIAL_POLL_DATA="initial_poll_data";
+    public static final String METRIC_SCHEDULER_UPDATE = "metric_scheduler_update";
+    public static final String INITIAL_POLL_DATA = "initial_poll_data";
 
-    public static final String PRIORITY_POLLING ="priorityPolling";
+    public static final String PRIORITY_POLLING = "priorityPolling";
 
-    public static final String SCHEDULER_POLLER_PRIORITY_POLLING ="pollerPriorityPolling";
+    public static final String SCHEDULER_POLLER_PRIORITY_POLLING = "pollerPriorityPolling";
     //Database methods
     public static final String DATABASE_CREATE = "create";
     public static final String DATABASE_DELETE = "delete";
@@ -31,16 +31,15 @@ public class Constant {
     public static final String EXECUTE_QUERY = "executeQuery";
 
 
-
     //Discovery Database Address
     public static final String DISCOVERY_DATABASE_CHECK_NAME = "discoveryName";
     public static final String RUN_DISCOVERY_DISCOVERY_ENGINE = "runDiscovery";
     public static final String DISCOVERY_DATABASE_CHECK_MULTIPLE = "discoveryCheckMultiple";
-    public static final String PROVISION_SCHEDULER ="scheduler";
-    public static final String SCHEDULER_POLLING ="scheduler_polling";
-    public static final String POLLER_DATABASE ="poller_database";
+    public static final String PROVISION_SCHEDULER = "scheduler";
+    public static final String SCHEDULER_POLLING = "scheduler_polling";
+    public static final String POLLER_DATABASE = "poller_database";
 
-    public static final String MONITOR_SCHEDULER_DELETE ="monitor_scheduler_delete";
+    public static final String MONITOR_SCHEDULER_DELETE = "monitor_scheduler_delete";
 
     // Json constants
     public static final String IP = "ip";
@@ -69,9 +68,9 @@ public class Constant {
 
     //Monitor Json
     public static final String MONITOR_ID = "monitor.id";
-    public static final String METRIC_ID ="metric.id";
+    public static final String METRIC_ID = "metric.id";
 
-    public static final String TIME ="time";
+    public static final String TIME = "time";
 
 
     // Constant Messages

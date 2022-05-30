@@ -20,7 +20,6 @@ public class MetricScheduler extends AbstractVerticle {
         var eventBus = vertx.eventBus();
         var initialQuery = "select metric_id,time from metric;";
         var contextQuery = "select username,password,community,version,type,metric_group,ip,port,metric.monitor_id from metric,monitor,credential where metric.credential_profile= credential.credential_id and metric.monitor_id=monitor.monitor_id and metric_id =number ;";
-
         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(QUERY, initialQuery).put(METHOD, GET_QUERY), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
                 var result = handler.result().body().getJsonArray(RESULT);
@@ -33,7 +32,6 @@ public class MetricScheduler extends AbstractVerticle {
                 LOGGER.info("message :{}", "metric table is empty");
             }
         });
-
         eventBus.<JsonObject>localConsumer(PROVISION_SCHEDULER, handler -> {
             if (handler.body() != null && handler.body().containsKey(RESULT) && handler.body().getJsonArray(RESULT) !=null) {
                 var result = handler.body().getJsonArray(RESULT);
@@ -62,7 +60,6 @@ public class MetricScheduler extends AbstractVerticle {
 
         eventBus.<JsonObject>localConsumer(METRIC_SCHEDULER_UPDATE,handler ->{
             if((handler.body() != null && handler.body().containsKey(RESULT) && handler.body().getJsonArray(RESULT) !=null)){
-
                 metric.put(handler.body().getInteger(METRIC_ID),handler.body().getInteger(TIME));
                 scheduledMetric.put(handler.body().getInteger(METRIC_ID),handler.body().getInteger(TIME));
             } else {

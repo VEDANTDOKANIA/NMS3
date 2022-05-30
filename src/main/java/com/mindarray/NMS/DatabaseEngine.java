@@ -55,7 +55,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         }
                     });
                 }
-                case DATABASE_GET -> {
+                case DATABASE_GET ->    {
                     if (handler.body().containsKey(TABLE) && handler.body().getString(TABLE) != null) {
                         get(handler.body()).onComplete(completeHandler -> {
                             if (completeHandler.succeeded()) {
@@ -80,7 +80,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         handler.fail(-1,"no table selected for create");
                     }
                 }
-                case DATABASE_CHECK -> {
+                case DATABASE_CHECK ->  {
                     var table = handler.body().getString(TABLE);
                     handler.body().remove(TABLE);
                     handler.body().remove(METHOD);
@@ -169,66 +169,76 @@ public class DatabaseEngine extends AbstractVerticle {
             }
         });
         eventBus.<JsonObject>localConsumer(PROVISION, handler -> {
-            switch (handler.body().getString(METHOD)) {
-                case "runProvision" -> {
-                    var futures = new ArrayList<Future>();
-                    var errors = new ArrayList<String>();
-                    getQuery(handler.body().getString(QUERY)).compose(futureResult -> check(MONITOR_TABLE, IP, handler.body().getString(IP))).compose(futureResult ->
-                            insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)).put("host",handler.body().getString("host")))).onComplete(futureResult -> {
-                        if (futureResult.succeeded()) {
-                            var metric = new JsonObject().put("monitor.id", futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
-                            var objects = new JsonObject();
-                            if (handler.body().containsKey("objects")) {
-                                var  object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
-                                objects.put("objects",object);
-                            }
-                            for (int index =0 ; index < Utils.metricGroup(handler.body().getString(TYPE)).size(); index ++){
-                                var groups = Utils.metricGroup(handler.body().getString(TYPE)).getJsonObject(index);
-                                if(groups.getString("metric.group").equals("interface")){
-                                    metric.mergeIn(objects);
-                                }
-                                futures.add(insert(METRIC_TABLE, metric.mergeIn(groups)));
-                                metric.remove("objects");
-                            }
-                            CompositeFuture.join(futures).onComplete(completeHandler -> {
-                                if (completeHandler.succeeded()) {
-                                    handler.reply(new JsonObject().put("id",metric.getString("monitor.id")));
-                                } else {
-                                    errors.add(completeHandler.cause().getMessage());
-                                }
-                            });
-                        } else {
-                            errors.add(futureResult.cause().getMessage());
-                            handler.fail(-1, errors.toString());
-                        }
-                    });
-                }
-                case "check" -> check(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).onComplete(result -> {
+            try{
+                switch (handler.body().getString(METHOD)) {
+                    case "runProvision" -> {
+                        var futures = new ArrayList<Future>();
+                        var errors = new ArrayList<String>();
+                        getQuery(handler.body().getString(QUERY)).compose(futureResult -> check(MONITOR_TABLE, IP, handler.body().getString(IP))).compose(futureResult ->
+                                insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)).put("host",handler.body().getString("host")))).onComplete(futureResult -> {
+                                    try {
+                                        if (futureResult.succeeded()) {
+                                            var metric = new JsonObject().put("monitor.id", futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
+                                            var objects = new JsonObject();
+                                            if (handler.body().containsKey("objects") && handler.body().getString(TYPE).equals("snmp")) {
+                                                var  object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
+                                                objects.put("objects",object);
+                                            }
+                                            for (int index =0 ; index < Utils.metricGroup(handler.body().getString(TYPE)).size(); index ++){
+                                                var groups = Utils.metricGroup(handler.body().getString(TYPE)).getJsonObject(index);
+                                                if(groups.getString("metric.group").equals("interface")){
+                                                    metric.mergeIn(objects);
+                                                }
+                                                futures.add(insert(METRIC_TABLE, metric.mergeIn(groups)));
+                                                metric.remove("objects");
+                                            }
+                                            CompositeFuture.join(futures).onComplete(completeHandler -> {
+                                                if (completeHandler.succeeded()) {
+                                                    handler.reply(new JsonObject().put("id",metric.getString("monitor.id")));
+                                                } else {
+                                                    errors.add(completeHandler.cause().getMessage());
+                                                }
+                                            });
+                                        } else {
+                                            errors.add(futureResult.cause().getMessage());
+                                            handler.fail(-1, errors.toString());
+                                        }
+                                    }catch (Exception exception){
+                                        handler.fail(-1,exception.getMessage());
+                                    }
+
+                        });
+                    }
+                    case "check" -> check(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).onComplete(result -> {
                         if (result.succeeded()) {
                             handler.reply(result.result());
                         } else {
                             handler.fail(-1, result.cause().getMessage());
                         }
                     });
-                case "delete" -> delete(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).compose(handler1 -> executeQuery(handler.body().getString(QUERY), "delete")).onComplete(handler1 -> {
+                    case "delete" -> delete(MONITOR_TABLE, "monitor_id", handler.body().getString(MONITOR_ID)).compose(handler1 -> executeQuery(handler.body().getString(QUERY), "delete")).onComplete(handler1 -> {
                         if (handler1.succeeded()) {
                             handler.reply(handler1.result());
                         } else {
                             handler.fail(-1, handler1.cause().getMessage());
                         }
                     });
-                case "get" -> getQuery(handler.body().getString(QUERY)).onComplete(result -> {
+                    case "get" -> getQuery(handler.body().getString(QUERY)).onComplete(result -> {
                         if (result.succeeded()) {
                             handler.reply(result.result());
                         } else {
                             handler.fail(-1, result.cause().getMessage());
                         }
                     });
-                default -> {
+                    default -> {
                         handler.fail(-1,"No matching method found");
                         LOGGER.error("error occurred :{}", "No matching method found");
+                    }
                 }
+            }catch (Exception exception){
+                handler.fail(-1,exception.getMessage());
             }
+
         });
 
         eventBus.<JsonObject>localConsumer(POLLER_DATABASE,handler ->{
@@ -453,7 +463,7 @@ public class DatabaseEngine extends AbstractVerticle {
                 var resultSet = statement.executeQuery(query.toString());
                 var rsmd = resultSet.getMetaData();
                 if (resultSet.next() == false) {
-                    error.add("No data to show");
+                    error.add("no data to show.wrong credentials provided");
                 } else {
                     do {
                         var data = new JsonObject();
@@ -518,7 +528,10 @@ public class DatabaseEngine extends AbstractVerticle {
                                     data.put(column, resultSet.getString(i));
                                 } else if (rsmd.getColumnTypeName(i).equals("JSON")) {
                                     data.put(column, resultSet.getObject(i));
-                                } else {
+                                }else if(rsmd.getColumnTypeName(i).equals("BIGINT")) {
+                                    data.put(column,resultSet.getLong(i));
+                                }
+                                else  {
                                     data.put(column, resultSet.getInt(i));
                                 }
                             }
