@@ -1,15 +1,14 @@
 package com.mindarray.NMS;
 
-import com.mindarray.Bootstrap;
 import com.mindarray.ProcessHandler;
 import com.zaxxer.nuprocess.NuProcess;
 import com.zaxxer.nuprocess.NuProcessBuilder;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.net.NetClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +41,7 @@ public class Utils {
                     var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+\\:\\s+\\w+/\\w+/%\\w+\\s+\\=\\s+\\d+/\\d+/(\\d+)%");
                     var matcher = pattern.matcher(result);
                     if (matcher.find()) {
+                        //TODO ek karna hain
                         if (!matcher.group(1).equals("0")) {
                             errors.add(" packet loss percentage is :" + matcher.group(1));
                         }
@@ -70,7 +70,7 @@ public class Utils {
         }
         try {
             var encoder = (Base64.getEncoder().encodeToString((entries).toString().getBytes(StandardCharsets.UTF_8)));
-            var processBuilder = new NuProcessBuilder(Arrays.asList("./plugin.exe", encoder));
+            var processBuilder = new NuProcessBuilder(Arrays.asList("./com.mindarray.nms", encoder));
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
             process = processBuilder.start();
@@ -98,17 +98,18 @@ public class Utils {
     }
 
     public static JsonObject checkPort(JsonObject entries) {
-        if (entries != null && entries.containsKey(TYPE) && entries.getString(TYPE).equals("snmp")) {
-            return entries.put(STATUS, SUCCESS);
-        } else {
-            NetClient client = Bootstrap.getVertx().createNetClient();
-            client.connect(entries.getInteger(PORT), entries.getString(IP), asyncResult -> {
-                if (asyncResult.succeeded()) {
-                    entries.put(STATUS, SUCCESS);
-                } else {
-                    entries.put(STATUS, FAIL).put(ERROR, asyncResult.cause().getMessage());
+        if( entries == null ||entries.getString(IP) == null || entries.getString(TYPE) ==null || entries.getInteger(PORT) ==null){
+            return new JsonObject().put(STATUS,FAIL).put(MESSAGE,"entries is null");
+        }else{
+            if ( entries.containsKey(TYPE) && entries.getString(TYPE).equals("snmp")) {
+                return entries.put(STATUS, SUCCESS);
+            } else {
+                try( var socket = new Socket(entries.getString(IP),entries.getInteger(PORT))){
+                    entries.put(STATUS,SUCCESS);
+                }catch (Exception exception){
+                    entries.put(STATUS,FAIL).put(MESSAGE,exception.getMessage());
                 }
-            });
+            }
             return entries;
         }
     }
@@ -214,7 +215,6 @@ public class Utils {
             keys.add("credential.profile");
             keys.add("community");
             keys.add("version");
-
         } else if (api.equals("monitor")) {
             keys.add("ip");
             keys.add("type");

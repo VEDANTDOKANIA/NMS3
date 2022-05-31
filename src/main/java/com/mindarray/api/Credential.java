@@ -173,8 +173,11 @@ public class Credential {
     }
 
     private void create(RoutingContext context) {
+        var data = context.getBodyAsJson();
+        data.remove(CREDENTIAL_ID);
+        data.remove(CREDENTIAL_PROFILE);
         var response = context.response();
-        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DATABASE_CREATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_CREATE).put(TABLE, CREDENTIAL_TABLE), handler -> {
             try {
                 if (handler.succeeded()) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -190,10 +193,7 @@ public class Credential {
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
                 LOGGER.error(exception.getMessage());
             }
-
         });
-
-
     }
 
     private void update(RoutingContext context) {

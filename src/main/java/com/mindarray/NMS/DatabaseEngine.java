@@ -358,7 +358,6 @@ public class DatabaseEngine extends AbstractVerticle {
         entries.remove(METHOD);
         entries.remove(TABLE);
         entries.remove(PROTOCOl);
-        entries.remove(PORT);
         entries.remove(TYPE);
         Promise<JsonObject> promise = Promise.promise();
         var error = new ArrayList<String>();
@@ -570,7 +569,6 @@ public class DatabaseEngine extends AbstractVerticle {
                 } else {
                     statement.execute(query);
                 }
-
             } catch (Exception exception) {
                 error.add(exception.getCause().getMessage());
             }

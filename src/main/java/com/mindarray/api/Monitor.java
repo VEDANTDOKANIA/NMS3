@@ -28,7 +28,7 @@ public class Monitor {
     }
 
     private void validate(RoutingContext context) {
-        LOGGER.info("routing context path :{} , routing context method : {}", context.normalizedPath(), context.request().method());
+        LOGGER.info("routing context path :{} , routing context method :{}", context.normalizedPath(), context.request().method());
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         HttpServerResponse response = context.response();
@@ -41,7 +41,7 @@ public class Monitor {
                     if (keyList.contains(value.getKey())) {
                         if (context.getBodyAsJson().getValue(value.getKey()) instanceof String) {
                             credentials.put(value.getKey(), context.getBodyAsJson().getString(value.getKey()).trim());
-                        }else{
+                        } else {
                             credentials.put(value.getKey(), context.getBodyAsJson().getValue(value.getKey()));
                         }
                     }
@@ -109,7 +109,7 @@ public class Monitor {
             Promise<JsonObject> promise = Promise.promise();
             Future<JsonObject> future = promise.future();
             var query = "select discovery_id from discovery where JSON_SEARCH(discovery_result,\"one\",\"success\") and credential_profile=\"" + context.getBodyAsJson().getString(CREDENTIAL_PROFILE) + "\" and "
-                    + " discovery.ip= \"" + context.getBodyAsJson().getString(IP) + "\" and " + "discovery.port=" + context.getBodyAsJson().getInteger(PORT) +
+                    + " discovery.ip= \"" + context.getBodyAsJson().getString(IP) + "\" "+
                     " and discovery.type =\"" + context.getBodyAsJson().getString(TYPE) + "\" ;";
             eventBus.<JsonObject>request(PROVISION, new JsonObject().put(METHOD, "runProvision").put(QUERY, query).mergeIn(context.getBodyAsJson()), handler -> {
                 try {
@@ -190,7 +190,7 @@ public class Monitor {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error("error occurred :{}",exception.getMessage());
+            LOGGER.error("error occurred :{}", exception.getMessage());
         }
 
     }

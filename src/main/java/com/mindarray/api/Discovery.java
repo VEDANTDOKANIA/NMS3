@@ -160,6 +160,7 @@ public class Discovery {
         var data = context.getBodyAsJson();
         data.remove("discovery.id");
         data.remove("discovery.result");
+        data.remove("credential.id");
         Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_CREATE).put(TABLE, DISCOVERY_TABLE), handler -> {
             try {
                 if (handler.succeeded() && handler.result().body() != null) {
