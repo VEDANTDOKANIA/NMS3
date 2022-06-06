@@ -44,7 +44,6 @@ public class MetricScheduler extends AbstractVerticle {
                 LOGGER.error("error occurred :{}", "handler body is null");
             }
         });
-
         eventBus.<JsonObject>localConsumer(MONITOR_SCHEDULER_DELETE ,handler ->{
             if((handler.body() != null && handler.body().containsKey(RESULT) && handler.body().getJsonArray(RESULT) !=null)){
                 var result = handler.body().getJsonArray(RESULT);
@@ -57,7 +56,6 @@ public class MetricScheduler extends AbstractVerticle {
                 LOGGER.error("error occurred :{}", "handler body is null");
             }
         });
-
         eventBus.<JsonObject>localConsumer(METRIC_SCHEDULER_UPDATE,handler ->{
             if((handler.body() != null && handler.body().containsKey(RESULT) && handler.body().getJsonArray(RESULT) !=null)){
                 metric.put(handler.body().getInteger(METRIC_ID),handler.body().getInteger(TIME));
@@ -66,7 +64,6 @@ public class MetricScheduler extends AbstractVerticle {
                 LOGGER.error("error occurred :{}", "handler body is null");
             }
         });
-
         vertx.setPeriodic(10000, handler -> {
             if (scheduledMetric.size() > 0) {
                 scheduledMetric.forEach((key, value) -> {
@@ -76,7 +73,7 @@ public class MetricScheduler extends AbstractVerticle {
                         scheduledMetric.put(key, originalTime);
                         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put(QUERY, contextQuery.replace("number", key.toString())), message -> {
                             if (message.succeeded() && message.result().body() != null) {
-                                eventBus.send(SCHEDULER_POLLING, message.result().body().getJsonArray(RESULT).getJsonObject(0).put("category", "polling").put("id", System.currentTimeMillis()));
+                                eventBus.send(SCHEDULER_POLLING, message.result().body().getJsonArray(RESULT).getJsonObject(0).put(CATEGORY, "polling").put(TIMESTAMP, System.currentTimeMillis()));
                             } else {
                                 LOGGER.error("error occurred :{}", message.cause().getMessage());
                             }

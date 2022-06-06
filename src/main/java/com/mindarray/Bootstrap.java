@@ -17,21 +17,23 @@ public class Bootstrap {
     private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);
 
     public static void main(String[] args) {
-        start(ApiRouter.class.getName()).
-                compose(handler -> start(DatabaseEngine.class.getName())).
-                compose(handler -> start(DiscoveryEngine.class.getName())).
-                compose(handler -> start(Poller.class.getName())).
-                compose(handler ->start(MetricScheduler.class.getName())).
-                onComplete(
-                        handler -> {
-                            if (handler.succeeded()) {
-                                LOGGER.info("all verticles deployed");
-                            } else {
-                                LOGGER.error("error occurred :{}",handler.cause().getMessage());
-                            }
-                        }
-                );
-
+        try{
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            start(ApiRouter.class.getName()).
+                    compose(handler -> start(DatabaseEngine.class.getName())).
+                    compose(handler -> start(DiscoveryEngine.class.getName())).
+                    compose(handler -> start(Poller.class.getName())).
+                    compose(handler ->start(MetricScheduler.class.getName())).
+                    onComplete(handler -> {
+                                if (handler.succeeded()) {
+                                    LOGGER.info("all verticles deployed");
+                                } else {
+                                    LOGGER.error("error occurred :{}",handler.cause().getMessage());
+                                }
+                            });
+        }catch (Exception exception){
+            LOGGER.error("error occurred :{}",exception.getMessage());
+        }
     }
 
     public static Future<Void> start(String verticle) {

@@ -16,12 +16,12 @@ public class Poller extends AbstractVerticle {
     HashMap<String, String> pingCheck = new HashMap<>();
 
     @Override
-    public void start(Promise<Void> startPromise) throws Exception {
+    public void start(Promise<Void> startPromise){
         var eventBus = vertx.eventBus();
         eventBus.<JsonObject>localConsumer(SCHEDULER_POLLING, handler -> {
             try {
                 if (handler.body() != null) {
-                    if (handler.body().getString("metric.group").equals("ping")) {
+                    if (handler.body().getString(METRIC_GROUP).equals(PING)) {
                         Bootstrap.getVertx().executeBlocking(blockingHandler -> {
                             if (Utils.checkAvailability(handler.body()).getString(STATUS).equals(SUCCESS)) {
                                 pingCheck.put(handler.body().getString(IP), "up");
@@ -35,11 +35,11 @@ public class Poller extends AbstractVerticle {
                             Bootstrap.getVertx().executeBlocking(blockingHandler -> {
                                 var result = Utils.spawnProcess(handler.body());
                                 if (result.getString(STATUS).equals(SUCCESS)) {
-                                    var data = new JsonObject().put(TABLE, "polling").put(MONITOR_ID, result.getString(MONITOR_ID))
-                                            .put("id", handler.body().getString("id")).put(METRIC_GROUP, handler.body().getString(METRIC_GROUP))
-                                            .put("object", result.getJsonObject(RESULT));
+                                    var data = new JsonObject().put(TABLE, POLLING_TABLE).put(MONITOR_ID, result.getString(MONITOR_ID))
+                                            .put(TIMESTAMP, handler.body().getString(TIMESTAMP)).put(METRIC_GROUP, handler.body().getString(METRIC_GROUP))
+                                            .put(OBJECT, result.getJsonObject(RESULT));
                                     eventBus.send(POLLER_DATABASE, data);
-                                    LOGGER.info("Polling :{}", result.getJsonObject(RESULT));
+                                    LOGGER.info("polling :{}", result.getJsonObject(RESULT));
                                 } else {
                                     LOGGER.error("error occurred :{}", result.getValue(ERROR));
                                 }

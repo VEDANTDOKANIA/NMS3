@@ -6,7 +6,7 @@ import com.mindarray.NMS.Utils;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -21,58 +21,63 @@ public class Discovery {
     private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
     public void init(Router router) {
-        router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::create);
-        router.route().method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT).handler(this::validate).handler(this::update);
+        router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT).handler(this::filter).handler(this::validate).handler(this::create);
+        router.route().method(HttpMethod.PUT).path(DISCOVERY_ENDPOINT+"/:id").handler(this::filter).handler(this::validate).handler(this::update);
         router.route().method(HttpMethod.DELETE).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::delete);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT).handler(this::get);
         router.route().method(HttpMethod.GET).path(DISCOVERY_ENDPOINT + "/:id").handler(this::validate).handler(this::getById);
         router.route().method(HttpMethod.POST).path(DISCOVERY_ENDPOINT + "/:id/run").handler(this::runDiscovery);
     }
 
+    private void filter(RoutingContext context) {
+        var data = new JsonObject();
+        var entries= context.getBodyAsJson();
+        var keyList = Utils.keyList("discovery");
+        entries.forEach(value -> {
+            if (keyList.contains(value.getKey())) {
+                if (entries.getValue(value.getKey()) instanceof String) {
+                    data.put(value.getKey(), entries.getString(value.getKey()).trim());
+                }else{
+                    data.put(value.getKey(),entries.getValue(value.getKey()));
+                }
+            }
+        });
+        context.setBody(data.toBuffer());
+        context.next();
+    }
 
     private void validate(RoutingContext context) {
         LOGGER.info("routing context path :{} , routing context method : {}", context.normalizedPath(), context.request().method());
-        HttpServerResponse response = context.response();
+        var response = context.response();
         var error = new ArrayList<String>();
         var eventBus = Bootstrap.getVertx().eventBus();
         try {
-            if ((!(context.request().method().toString().equals("GET"))) && (!(context.request().method().toString().equals("DELETE")))) {
-                var credentials = new JsonObject();
-                var keyList = Utils.keyList("discovery");
-                context.getBodyAsJson().forEach(value -> {
-                    if (keyList.contains(value.getKey())) {
-                        if (context.getBodyAsJson().getValue(value.getKey()) instanceof String) {
-                            credentials.put(value.getKey(), context.getBodyAsJson().getString(value.getKey()).trim());
-                        }else{
-                            credentials.put(value.getKey(),context.getBodyAsJson().getValue(value.getKey()));
-                        }
-                    }
-                });
-                context.setBody(credentials.toBuffer());
-            }
             switch (context.request().method().toString()) {
                 case "POST" -> {
-                    if (!(context.getBodyAsJson().containsKey(DISCOVERY_NAME)) || context.getBodyAsJson().getString(DISCOVERY_NAME) == null) {
+                    var entries = context.getBodyAsJson();
+                    if (!(entries.containsKey(DISCOVERY_NAME)) || entries.getString(DISCOVERY_NAME).isEmpty()) {
                         error.add("discovery name is null");
                     }
-                    if (!(context.getBodyAsJson().containsKey(CREDENTIAL_PROFILE)) || context.getBodyAsJson().getString(CREDENTIAL_PROFILE) == null) {
+                    if (!(entries.containsKey(CREDENTIAL_PROFILE)) || entries.getString(CREDENTIAL_PROFILE).isEmpty()) {
                         error.add("credential profile is null");
                     }
-                    if (!(context.getBodyAsJson().containsKey(DISCOVERY_IP)) || context.getBodyAsJson().getString(DISCOVERY_IP) == null) {
+                    if (!(entries.containsKey(DISCOVERY_IP)) || entries.getString(DISCOVERY_IP).isEmpty()) {
                         error.add("ip is null");
                     }
-                    if (!(context.getBodyAsJson().containsKey(DISCOVERY_TYPE)) || context.getBodyAsJson().getString(DISCOVERY_TYPE) == null) {
+                    if (!(entries.containsKey(DISCOVERY_TYPE)) || entries.getString(DISCOVERY_TYPE).isEmpty()) {
                         error.add("no type defined for discovery");
                     }
-                    if (!(context.getBodyAsJson().containsKey(DISCOVERY_PORT)) || context.getBodyAsJson().getInteger(DISCOVERY_PORT) == null) {
+                    if (!entries.containsKey(DISCOVERY_PORT)) {
                         error.add("port not defined for discovery");
                     }
-                    if (!(context.getBodyAsJson().containsKey(CREDENTIAL_PROFILE)) || context.getBodyAsJson().getString(CREDENTIAL_PROFILE) == null) {
+                    if (!(entries.containsKey(CREDENTIAL_PROFILE)) || entries.getString(CREDENTIAL_PROFILE).isEmpty()) {
                         error.add("credential profile not defined for discovery");
                     }
-                    //Unique Discovery Name
                     if (error.isEmpty()) {
-                        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DISCOVERY_DATABASE_CHECK_NAME), handler -> {
+                        var parameters = new JsonArray();
+                        parameters.add(new JsonObject().put(TABLE,DISCOVERY_TABLE).put(COLUMN,DISCOVERY_NAME).put(VALUE,entries.getString(DISCOVERY_NAME)));
+                        parameters.add(new JsonObject().put(TABLE,CREDENTIAL_TABLE).put(COLUMN,CREDENTIAL_ID).put(VALUE,entries.getString(CREDENTIAL_PROFILE)));
+                        eventBus.<JsonObject>request(DATABASE, entries.put(METHOD, DATABASE_CHECK).put(PARAMETER,parameters), handler -> {
                             if (handler.succeeded() && handler.result().body()!=null) {
                                 context.next();
                                 LOGGER.info("validation performed successfully :{}", context.request().method());
@@ -85,12 +90,13 @@ public class Discovery {
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(ERROR, error).put(STATUS, FAIL).encodePrettily());
-                        LOGGER.error("An error occurred {}", error);
+                        LOGGER.error("error occurred :{}", error);
                     }
                 }
-                case "DELETE" -> {
+                case "DELETE","GET" -> {
                     if (context.pathParam("id") != null) {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, DISCOVERY_TABLE), handler -> {
+                        var parameters = new JsonArray().add(new JsonObject().put(TABLE,DISCOVERY_TABLE).put(COLUMN,DISCOVERY_ID).put(VALUE,context.pathParam("id")));
+                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_CHECK).put(PARAMETER, parameters), handler -> {
                             if (handler.succeeded() && handler.result().body()!=null) {
                                 context.next();
                                 LOGGER.info("validation performed successfully :{}", context.request().method());
@@ -106,31 +112,23 @@ public class Discovery {
                         LOGGER.error("id is null");
                     }
                 }
-                case "GET" -> {
-                    if (context.pathParam("id") == null) {
-                        response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                        response.end(new JsonObject().put(MESSAGE, "id is null").put(STATUS, FAIL).encodePrettily());
-                        LOGGER.error("error occurred :{}", "id is null");
-                    } else {
-                        eventBus.<JsonObject>request(DATABASE, new JsonObject().put(DISCOVERY_ID, context.pathParam("id")).put(METHOD, DATABASE_CHECK).put(TABLE, DISCOVERY_TABLE), handler -> {
-                            if (handler.succeeded() && handler.result().body()!=null) {
-                                context.next();
-                                LOGGER.info("validation performed successfully :{}", context.request().method());
-                            } else {
-                                response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
-                                LOGGER.error(handler.cause().getMessage());
-                            }
-                        });
-                    }
-                }
                 case "PUT" -> {
-                    if (!(context.getBodyAsJson().containsKey(DISCOVERY_ID)) || context.getBodyAsJson().getString(DISCOVERY_ID) == null) {
+                    var entries = context.getBodyAsJson();
+                    var id = context.pathParam("id");
+                    if (id ==null) {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Id is null").encodePrettily());
                         LOGGER.error("error occurred :{}", "id is null");
                     } else {
-                        eventBus.<JsonObject>request(DATABASE, context.getBodyAsJson().put(METHOD, DISCOVERY_DATABASE_CHECK_MULTIPLE), handler -> {
+                        var parameters = new JsonArray();
+                        parameters.add(new JsonObject().put(TABLE,DISCOVERY_TABLE).put(COLUMN,DISCOVERY_ID).put(VALUE,id));
+                        if(entries.containsKey(DISCOVERY_NAME)){
+                            parameters.add(new JsonObject().put(TABLE,DISCOVERY_TABLE).put(COLUMN,DISCOVERY_NAME).put(VALUE,entries.getString(DISCOVERY_NAME)));
+                        }
+                        if(entries.containsKey(CREDENTIAL_PROFILE)){
+                            parameters.add(new JsonObject().put(TABLE,CREDENTIAL_TABLE).put(COLUMN,CREDENTIAL_ID).put(VALUE,entries.getString(CREDENTIAL_PROFILE)));
+                        }
+                        eventBus.<JsonObject>request(DATABASE, entries.put(METHOD,DATABASE_CHECK).put(PARAMETER,parameters), handler -> {
                             if (handler.succeeded() && handler.result().body()!=null) {
                                 context.next();
                                 LOGGER.info("validation performed successfully :{}", context.request().method());
@@ -150,7 +148,7 @@ public class Discovery {
             }
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
-            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getCause().getMessage()).encodePrettily());
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong json format").put(ERROR, exception.getCause().getMessage()).encodePrettily());
             LOGGER.error("error occurred :{}", exception.getMessage());
         }
     }
@@ -177,17 +175,13 @@ public class Discovery {
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
                 LOGGER.error(exception.getMessage());
             }
-
         });
-
-
     }
 
     private void update(RoutingContext context) {
         var response = context.response();
         var data = context.getBodyAsJson();
-        data.remove("discovery.result");
-        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_UPDATE).put(TABLE, DISCOVERY_TABLE), handler -> {
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_UPDATE).put(TABLE, DISCOVERY_TABLE).put(DISCOVERY_ID,context.pathParam("id")), handler -> {
             try {
                 if (handler.succeeded() && handler.result().body()!=null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -295,7 +289,7 @@ public class Discovery {
                             promise.fail("id does not exist in table");
                             LOGGER.error("error occurred :{}", "id does not exist in table");
                         } else {
-                            promise.complete(handler.result().body().getJsonArray(RESULT).getJsonObject(0).put("category", "discovery"));
+                            promise.complete(handler.result().body().getJsonArray(RESULT).getJsonObject(0).put(CATEGORY, "discovery"));
                         }
                     } else {
                         promise.fail(handler.cause().getMessage());
@@ -364,5 +358,4 @@ public class Discovery {
         }
 
     }
-
 }

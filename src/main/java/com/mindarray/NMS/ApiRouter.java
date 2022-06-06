@@ -27,16 +27,13 @@ public class ApiRouter extends AbstractVerticle {
         new Metric().init(router);
         vertx.createHttpServer().requestHandler(mainRouter).listen(5555).onComplete(handler -> {
                     if (handler.succeeded()) {
-                        LOGGER.info("Http server started");
+                        LOGGER.info("http server started");
                         startPromise.complete();
                     } else {
                         LOGGER.info("unable to start HTTP server :{}", handler.cause().getMessage());
                         startPromise.fail(handler.cause().getMessage());
                     }
-
                 }
         );
-
-
     }
 }

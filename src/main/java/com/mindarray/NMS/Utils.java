@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -24,9 +25,9 @@ public class Utils {
     public static JsonObject checkAvailability(JsonObject entries) {
         var errors = new ArrayList<String>();
         if ((!entries.containsKey("ip")) || entries.getString("ip") == null) {
-            errors.add("Ip address is null in check availability");
-            LOGGER.error("Ip address is null in check availability");
-            return entries.put(STATUS, FAIL).put(ERROR, "Ip address is null in check availability");
+            errors.add("ip address is null in check availability");
+            LOGGER.error("error occurred :{}","ip address is null in check availability");
+            return entries.put(STATUS, FAIL).put(ERROR, "ip address is null in check availability");
         } else {
             var processBuilder = new NuProcessBuilder(Arrays.asList("fping", "-c", "3", "-t", "1000", "-q", entries.getString("ip")));
             var handler = new ProcessHandler();
@@ -38,13 +39,10 @@ public class Utils {
                 if (result == null) {
                     errors.add("request time out occurred");
                 } else {
-                    var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+\\:\\s+\\w+/\\w+/%\\w+\\s+\\=\\s+\\d+/\\d+/(\\d+)%");
+                    var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+:\\s+\\w+/\\w+/%\\w+\\s+=\\s+\\d+/\\d+/(\\d+)%");
                     var matcher = pattern.matcher(result);
-                    if (matcher.find()) {
-                        //TODO ek karna hain
-                        if (!matcher.group(1).equals("0")) {
+                    if (matcher.find() && (!matcher.group(1).equals("0"))) {
                             errors.add(" packet loss percentage is :" + matcher.group(1));
-                        }
                     }
                 }
             } catch (Exception exception) {
@@ -65,8 +63,8 @@ public class Utils {
         var errors = new ArrayList<String>();
         NuProcess process = null;
         if (entries == null) {
-            LOGGER.error("entries is null");
-            return entries.put(STATUS, FAIL).put(ERROR, "entries is null");
+            LOGGER.error("error occurred :{}","entries is null");
+            return new JsonObject().put(STATUS, FAIL).put(ERROR, "entries is null");
         }
         try {
             var encoder = (Base64.getEncoder().encodeToString((entries).toString().getBytes(StandardCharsets.UTF_8)));
@@ -87,7 +85,9 @@ public class Utils {
         } catch (Exception exception) {
             errors.add(exception.getMessage());
         } finally {
-            process.destroy(true);
+            if(process != null){
+                process.destroy(true);
+            }
         }
         if (errors.isEmpty()) {
             entries.put(STATUS, SUCCESS).put(RESULT, output);
@@ -117,23 +117,23 @@ public class Utils {
     public static JsonArray metricGroup(String type) {
         var metric = new JsonArray();
         if (type.equals("linux")) {
-            metric.add(new JsonObject().put("metric.group", "cpu").put("time", 60000));
-            metric.add(new JsonObject().put("metric.group", "disk").put("time", 70000));
-            metric.add(new JsonObject().put("metric.group", "memory").put("time", 80000));
-            metric.add(new JsonObject().put("metric.group", "process").put("time", 60000));
-            metric.add(new JsonObject().put("metric.group", "system").put("time", 100000));
-            metric.add(new JsonObject().put("metric.group", "ping").put("time", 60000));
+            metric.add(new JsonObject().put(METRIC_GROUP, CPU).put(TIME, 60000));
+            metric.add(new JsonObject().put(METRIC_GROUP, DISK).put(TIME, 70000));
+            metric.add(new JsonObject().put(METRIC_GROUP, MEMORY).put(TIME, 80000));
+            metric.add(new JsonObject().put(METRIC_GROUP, PROCESS).put(TIME, 60000));
+            metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 100000));
+            metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
         } else if (type.equals("windows")) {
-            metric.add(new JsonObject().put("metric.group", "cpu").put("time", 80000));
-            metric.add(new JsonObject().put("metric.group", "disk").put("time", 100000));
-            metric.add(new JsonObject().put("metric.group", "memory").put("time", 110000));
-            metric.add(new JsonObject().put("metric.group", "process").put("time", 80000));
-            metric.add(new JsonObject().put("metric.group", "system").put("time", 120000));
-            metric.add(new JsonObject().put("metric.group", "ping").put("time", 60000));
+            metric.add(new JsonObject().put(METRIC_GROUP, CPU).put(TIME, 80000));
+            metric.add(new JsonObject().put(METRIC_GROUP, DISK).put(TIME, 100000));
+            metric.add(new JsonObject().put(METRIC_GROUP, MEMORY).put(TIME, 110000));
+            metric.add(new JsonObject().put(METRIC_GROUP, PROCESS).put(TIME, 80000));
+            metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 120000));
+            metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
         } else if (type.equals("snmp")) {
-            metric.add(new JsonObject().put("metric.group", "system").put("time", 80000));
-            metric.add(new JsonObject().put("metric.group", "interface").put("time", 70000));
-            metric.add(new JsonObject().put("metric.group", "ping").put("time", 60000));
+            metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 80000));
+            metric.add(new JsonObject().put(METRIC_GROUP, INTERFACE).put(TIME, 70000));
+            metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
         }
         return metric;
     }
@@ -141,54 +141,54 @@ public class Utils {
     public static int[] groupTime(String type, String metricGroup) {
         int[] time = new int[2];
         if (type.equals("linux")) {
-            if (metricGroup.equals("cpu")) {
+            if (metricGroup.equals(CPU)) {
                 time[0] = 60000;
                 time[1] = 86300000;
-            } else if (metricGroup.equals("disk")) {
+            } else if (metricGroup.equals(DISK)) {
                 time[0] = 70000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("memory")) {
+            } else if (metricGroup.equals(MEMORY)) {
                 time[0] = 80000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("process")) {
+            } else if (metricGroup.equals(PROCESS)) {
                 time[0] = 90000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("system")) {
+            } else if (metricGroup.equals(SYSTEM)) {
                 time[0] = 100000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("ping")) {
+            } else if (metricGroup.equals(PING)) {
                 time[0] = 60000;
                 time[1] = 86400000;
             }
         } else if (type.equals("windows")) {
-            if (metricGroup.equals("cpu")) {
+            if (metricGroup.equals(CPU)) {
                 time[0] = 80000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("disk")) {
+            } else if (metricGroup.equals(DISK)) {
                 time[0] = 100000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("memory")) {
+            } else if (metricGroup.equals(MEMORY)) {
                 time[0] = 110000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("process")) {
+            } else if (metricGroup.equals(PROCESS)) {
                 time[0] = 80000;
                 time[1] = 86300000;
-            } else if (metricGroup.equals("system")) {
+            } else if (metricGroup.equals(SYSTEM)) {
                 time[0] = 120000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("ping")) {
+            } else if (metricGroup.equals(PING)) {
                 time[0] = 60000;
                 time[1] = 86400000;
             }
 
         } else if (type.equals("snmp")) {
-            if (metricGroup.equals("system")) {
+            if (metricGroup.equals(SYSTEM)) {
                 time[0] = 80000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("interface")) {
+            } else if (metricGroup.equals(INTERFACE)) {
                 time[0] = 70000;
                 time[1] = 86400000;
-            } else if (metricGroup.equals("ping")) {
+            } else if (metricGroup.equals(PING)) {
                 time[0] = 60000;
                 time[1] = 86400000;
             }
@@ -196,37 +196,37 @@ public class Utils {
         return time;
     }
 
-    public static ArrayList<String> keyList(String api) {
+    public static List<String> keyList(String api) {
         var keys = new ArrayList<String>();
-        if (api.equals("discovery")) {
-            keys.add("discovery.name");
-            keys.add("discovery.id");
-            keys.add("ip");
-            keys.add("type");
-            keys.add("port");
-            keys.add("credential.profile");
-            keys.add("credential.id");
-        } else if (api.equals("credential")) {
-            keys.add("credential.name");
-            keys.add("credential.id");
-            keys.add("protocol");
-            keys.add("username");
-            keys.add("password");
-            keys.add("credential.profile");
-            keys.add("community");
-            keys.add("version");
-        } else if (api.equals("monitor")) {
-            keys.add("ip");
-            keys.add("type");
-            keys.add("port");
-            keys.add("monitor.id");
-            keys.add("credential.id");
-            keys.add("credential.profile");
-            keys.add("objects");
-            keys.add("host");
-        } else if (api.equals("metric")) {
-            keys.add("time");
-            keys.add("metric.id");
+        if (api.equals(DISCOVERY_TABLE)) {
+            keys.add(DISCOVERY_NAME);
+            keys.add(DISCOVERY_ID);
+            keys.add(IP);
+            keys.add(TYPE);
+            keys.add(PORT);
+            keys.add(CREDENTIAL_PROFILE);
+            keys.add(CREDENTIAL_ID);
+        } else if (api.equals(CREDENTIAL_TABLE)) {
+            keys.add(CREDENTIAL_NAME);
+            keys.add(CREDENTIAL_ID);
+            keys.add(PROTOCOL);
+            keys.add(USERNAME);
+            keys.add(PASSWORD);
+            keys.add(CREDENTIAL_PROFILE);
+            keys.add(COMMUNITY);
+            keys.add(VERSION);
+        } else if (api.equals(MONITOR_TABLE)) {
+            keys.add(IP);
+            keys.add(TYPE);
+            keys.add(PORT);
+            keys.add(MONITOR_ID);
+            keys.add(CREDENTIAL_ID);
+            keys.add(CREDENTIAL_PROFILE);
+            keys.add(OBJECTS);
+            keys.add(HOST);
+        } else if (api.equals(METRIC_TABLE)) {
+            keys.add(TIME);
+            keys.add(METRIC_ID);
         }
         return keys;
     }
