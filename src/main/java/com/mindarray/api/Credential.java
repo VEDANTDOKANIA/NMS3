@@ -26,11 +26,12 @@ public class Credential {
     }
 
     private void filter(RoutingContext context) {
+        try{
             var credentials = new JsonObject();
             var entries = context.getBodyAsJson();
             var keyList = Utils.keyList("credential");
             if (keyList.isEmpty()) {
-               LOGGER.error("error occurred :{}","wrong credential selected or empty json");
+                LOGGER.error("error occurred :{}","wrong credential selected or empty json");
             } else {
                 entries.forEach(value -> {
                     if (keyList.contains(value.getKey())) {
@@ -44,6 +45,12 @@ public class Credential {
                 context.setBody(credentials.toBuffer());
                 context.next();
             }
+        }catch (Exception exception){
+           context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+           context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
+            LOGGER.error(exception.getCause().getMessage());
+        }
+
 
     }
 
@@ -86,6 +93,8 @@ public class Credential {
                         } else {
                             error.add("wrong protocol selected");
                         }
+                    }else{
+                        error.add("protocol is empty");
                     }
                     if ((!entries.containsKey(CREDENTIAL_NAME)) || context.getBodyAsJson().getString(CREDENTIAL_NAME).equals("")) {
                         error.add("credential name should be provided");
@@ -151,7 +160,7 @@ public class Credential {
                             conditions.put(TABLE,CREDENTIAL_TABLE).put(COLUMN,CREDENTIAL_NAME).put(VALUE,entries.getString(CREDENTIAL_NAME));
                             parameters.add(conditions);
                         }
-                        eventBus.<JsonObject>request(DATABASE, conditions.put(METHOD, DATABASE_CHECK).put(PARAMETER, parameters), handler -> {
+                        eventBus.<JsonObject>request(DATABASE, entries.put(METHOD, DATABASE_CHECK).put(PARAMETER, parameters), handler -> {
                             if (handler.succeeded() && handler.result().body() != null) {
                                 context.next();
                                 LOGGER.info("validation performed successfully :{}", context.request().method());
@@ -212,8 +221,7 @@ public class Credential {
     private void update(RoutingContext context) {
         var response = context.response();
         var eventBus = Bootstrap.getVertx().eventBus();
-        var data = context.getBodyAsJson();
-        data.remove(CREDENTIAL_ID);
+        var data = context.getBodyAsJson().put(CREDENTIAL_ID,context.pathParam("id"));
         data.remove(PROTOCOL);
         var query = "select protocol from credential where credential_id=" + context.pathParam("id") + ";";
         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put(QUERY, query), handler -> {

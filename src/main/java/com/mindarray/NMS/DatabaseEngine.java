@@ -245,7 +245,7 @@ public class DatabaseEngine extends AbstractVerticle {
                             }
                         } else {
                             if (resultSet.getInt(1) == 0) {
-                                handler.fail(table + "." + finalColumn + " does not exists in table ");
+                                handler.fail( finalColumn + " does not exists in table ");
                             }
                         }
                     }
@@ -297,7 +297,6 @@ public class DatabaseEngine extends AbstractVerticle {
         entries.remove(METHOD);
         entries.remove(TABLE);
         entries.remove(PROTOCOL);
-        entries.remove(TYPE);
         entries.remove(PARAMETER);
         Promise<JsonObject> promise = Promise.promise();
         var query = new StringBuilder();
@@ -311,6 +310,8 @@ public class DatabaseEngine extends AbstractVerticle {
             query.append(column).append("=");
             if (data instanceof String) {
                 query.append("\"").append(data).append("\",");
+            }else if(data instanceof JsonObject || data instanceof JsonArray){
+                query.append("\'").append(data).append("\',");
             } else {
                 query.append(data).append(",");
             }
@@ -387,7 +388,9 @@ public class DatabaseEngine extends AbstractVerticle {
             try (var connection = connect(); var statement = connection.createStatement(); var resultSet = statement.executeQuery(query.toString())) {
                 var resultSetMetaData = resultSet.getMetaData();
                 if (!resultSet.next()) {
-                    handler.fail("no data to show wrong credentials provided");
+                    if(!entries.getString("condition").equals("all")){
+                        handler.fail("no data to show wrong credentials provided");
+                    }
                 } else {
                     do {
                         var data = new JsonObject();

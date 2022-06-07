@@ -21,7 +21,7 @@ public class DiscoveryEngine extends AbstractVerticle {
                         var availability = Utils.checkAvailability(handler.body());
                         if (availability != null && availability.getString(STATUS).equals(SUCCESS)) {
                             var portCheck = Utils.checkPort(handler.body());
-                            if (handler.body().getString(STATUS).equals(SUCCESS)) {
+                            if (portCheck.getString(STATUS).equals(SUCCESS)) {
                                 var process = Utils.spawnProcess(handler.body().put(CATEGORY, "discovery"));
                                 if (process.getString(STATUS).equals(SUCCESS)) {
                                     blockingHandler.complete(process.getJsonObject(RESULT));

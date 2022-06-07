@@ -72,7 +72,7 @@ public class Utils {
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
             process = processBuilder.start();
-            process.waitFor(6000, TimeUnit.MILLISECONDS);
+            process.waitFor(15000, TimeUnit.MILLISECONDS);
             var result = handler.output();
             if (result == null) {
                 errors.add("request time out occurred");
@@ -90,6 +90,7 @@ public class Utils {
             }
         }
         if (errors.isEmpty()) {
+            output.remove(STATUS);
             entries.put(STATUS, SUCCESS).put(RESULT, output);
         } else {
             entries.put(STATUS, FAIL).put(ERROR, errors);
@@ -107,7 +108,7 @@ public class Utils {
                 try( var socket = new Socket(entries.getString(IP),entries.getInteger(PORT))){
                     entries.put(STATUS,SUCCESS);
                 }catch (Exception exception){
-                    entries.put(STATUS,FAIL).put(MESSAGE,exception.getMessage());
+                    entries.put(STATUS,FAIL).put(ERROR,exception.getMessage());
                 }
             }
             return entries;

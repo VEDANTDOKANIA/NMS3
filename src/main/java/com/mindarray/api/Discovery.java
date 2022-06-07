@@ -30,20 +30,28 @@ public class Discovery {
     }
 
     private void filter(RoutingContext context) {
-        var data = new JsonObject();
-        var entries= context.getBodyAsJson();
-        var keyList = Utils.keyList("discovery");
-        entries.forEach(value -> {
-            if (keyList.contains(value.getKey())) {
-                if (entries.getValue(value.getKey()) instanceof String) {
-                    data.put(value.getKey(), entries.getString(value.getKey()).trim());
-                }else{
-                    data.put(value.getKey(),entries.getValue(value.getKey()));
+        try {
+            var data = new JsonObject();
+            var entries= context.getBodyAsJson();
+            var keyList = Utils.keyList("discovery");
+            entries.forEach(value -> {
+                if (keyList.contains(value.getKey())) {
+                    if (entries.getValue(value.getKey()) instanceof String) {
+                        data.put(value.getKey(), entries.getString(value.getKey()).trim());
+                    }else{
+                        data.put(value.getKey(),entries.getValue(value.getKey()));
+                    }
                 }
-            }
-        });
-        context.setBody(data.toBuffer());
-        context.next();
+            });
+            context.setBody(data.toBuffer());
+            context.next();
+
+        }catch (Exception exception){
+            context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
+            LOGGER.error(exception.getCause().getMessage());
+        }
+
     }
 
     private void validate(RoutingContext context) {
@@ -181,7 +189,10 @@ public class Discovery {
     private void update(RoutingContext context) {
         var response = context.response();
         var data = context.getBodyAsJson();
-        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_UPDATE).put(TABLE, DISCOVERY_TABLE).put(DISCOVERY_ID,context.pathParam("id")), handler -> {
+        data.remove("discovery_result");
+        data.remove(TYPE);
+        data.remove(DISCOVERY_ID);
+        Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, data.put(METHOD, DATABASE_UPDATE).put(TABLE, DISCOVERY_TABLE).put(DISCOVERY_ID,context.pathParam("id")).put("discovery_result",new JsonObject().put(STATUS,FAIL)), handler -> {
             try {
                 if (handler.succeeded() && handler.result().body()!=null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -330,7 +341,7 @@ public class Discovery {
                             } else {
                                 if (errors.isEmpty()) {
                                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                                    response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "Discovered successfully").encodePrettily());
+                                    response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, "discovered successfully").encodePrettily());
                                     LOGGER.info("context :{} , status :{}", context.pathParam("id"), SUCCESS);
                                 } else {
                                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
