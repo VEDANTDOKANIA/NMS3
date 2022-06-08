@@ -4,14 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e7db21fa-5807-4c88-89f9-ab517d6cca0c" name="Changes" comment="Code refractor and changes in the logic">
+    <list default="true" id="e7db21fa-5807-4c88-89f9-ab517d6cca0c" name="Changes" comment="Credential and discovery working and test completed">
+      <change afterPath="$PROJECT_DIR$/src/test/java/ExceptionTrial.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/com.mindarray.nms" beforeDir="false" afterPath="$PROJECT_DIR$/com.mindarray.nms" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/DatabaseEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/DatabaseEngine.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/DiscoveryEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/DiscoveryEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/MetricScheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/MetricScheduler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/Utils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/NMS/Utils.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Credential.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Credential.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Discovery.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Discovery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Metric.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Metric.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Monitor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/mindarray/api/Monitor.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -64,16 +67,16 @@
       <recent name="com.mindarray.NMS" />
     </key>
   </component>
-  <component name="RunManager" selected="Application.com.mindarray.Bootstrap">
-    <configuration name="JsonIteration" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="JsonIteration" />
+  <component name="RunManager" selected="Application.ExceptionTrial">
+    <configuration name="ExceptionTrial" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="ExceptionTrial" />
       <module name="NMS3" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
     </configuration>
-    <configuration name="clickhousetest" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="clickhousetest" />
+    <configuration name="JsonIteration" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="JsonIteration" />
       <module name="NMS3" />
       <method v="2">
         <option name="Make" enabled="true" />
@@ -108,11 +111,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Application.ExceptionTrial" />
         <item itemvalue="Application.com.mindarray.Bootstrap" />
         <item itemvalue="Application.ver" />
         <item itemvalue="Application.test1" />
         <item itemvalue="Application.JsonIteration" />
-        <item itemvalue="Application.clickhousetest" />
       </list>
     </recent_temporary>
   </component>
@@ -244,7 +247,14 @@
       <option name="project" value="LOCAL" />
       <updated>1654522422938</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="Credential and discovery working and test completed">
+      <created>1654608952030</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1654608952030</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="UnknownFeatures">
@@ -279,7 +289,24 @@
     <MESSAGE value="Code refractor" />
     <MESSAGE value="Code refractor with minor changes" />
     <MESSAGE value="Code refractor and changes in the logic" />
-    <option name="LAST_COMMIT_MESSAGE" value="Code refractor and changes in the logic" />
+    <MESSAGE value="Credential and discovery working and test completed" />
+    <option name="LAST_COMMIT_MESSAGE" value="Credential and discovery working and test completed" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/com/mindarray/api/Monitor.java</url>
+          <line>277</line>
+          <option name="timeStamp" value="24" />
+        </line-breakpoint>
+        <line-breakpoint type="java-line">
+          <url>file://$PROJECT_DIR$/src/main/java/com/mindarray/api/Monitor.java</url>
+          <line>279</line>
+          <option name="timeStamp" value="25" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

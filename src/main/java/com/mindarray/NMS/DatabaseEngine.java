@@ -176,7 +176,13 @@ public class DatabaseEngine extends AbstractVerticle {
                             handler.fail(-1, result.cause().getMessage());
                         }
                     });
-                    case "update" -> update(MONITOR_TABLE,handler.body());
+                    case "update" -> update(MONITOR_TABLE,handler.body()).onComplete(result -> {
+                        if (result.succeeded() && result.result() != null) {
+                            handler.reply(result.result());
+                        } else {
+                            handler.fail(-1, result.cause().getMessage());
+                        }
+                    });
                     default -> {
                         handler.fail(-1, "no matching method found");
                         LOGGER.error("error occurred :{}", "no matching method found");
@@ -205,7 +211,7 @@ public class DatabaseEngine extends AbstractVerticle {
         try {
             connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/nms", "vedant.dokania", "Mind@123");
         } catch (Exception exception) {
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
         return connection;
     }
@@ -251,7 +257,7 @@ public class DatabaseEngine extends AbstractVerticle {
                     }
                 } catch (Exception exception) {
                     handler.fail(exception.getCause().getMessage());
-                    LOGGER.error(exception.getCause().getMessage());
+                  LOGGER.error("exception occurred :",exception);
                 }
                 handler.complete();
             }).onComplete(completeHandler -> {

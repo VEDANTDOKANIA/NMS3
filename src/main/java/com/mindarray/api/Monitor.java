@@ -28,20 +28,27 @@ public class Monitor {
     }
 
     private void filter(RoutingContext context) {
-        var credentials = new JsonObject();
-        var keyList = Utils.keyList("monitor");
-        context.getBodyAsJson().forEach(value -> {
-            if (keyList.contains(value.getKey())) {
-                if (context.getBodyAsJson().getValue(value.getKey()) instanceof String) {
-                    credentials.put(value.getKey(), context.getBodyAsJson().getString(value.getKey()).trim());
-                } else {
-                    credentials.put(value.getKey(), context.getBodyAsJson().getValue(value.getKey()));
+        try{
+            var credentials = new JsonObject();
+            var keyList = Utils.keyList("monitor");
+            context.getBodyAsJson().forEach(value -> {
+                if (keyList.contains(value.getKey())) {
+                    if (context.getBodyAsJson().getValue(value.getKey()) instanceof String) {
+                        credentials.put(value.getKey(), context.getBodyAsJson().getString(value.getKey()).trim());
+                    } else {
+                        credentials.put(value.getKey(), context.getBodyAsJson().getValue(value.getKey()));
+                    }
                 }
-            }
 
-        });
-        context.setBody(credentials.toBuffer());
-        context.next();
+            });
+            context.setBody(credentials.toBuffer());
+            context.next();
+        }catch (Exception exception){
+            context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
+          LOGGER.error("exception occurred :",exception);
+        }
+
     }
 
     private void validate(RoutingContext context) {
@@ -119,8 +126,8 @@ public class Monitor {
             }
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
-            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getMessage());
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+            LOGGER.error("exception occurred :",exception);
         }
     }
 
@@ -133,7 +140,7 @@ public class Monitor {
             Future<JsonObject> future = promise.future();
             var query = "select discovery_id from discovery where JSON_SEARCH(discovery_result,\"one\",\"success\") and credential_profile=\"" + entries.getString(CREDENTIAL_PROFILE) + "\" and "
                     + " discovery.ip= \"" + entries.getString(IP) + "\" "+
-                    " and discovery.type =\"" + entries.getString(TYPE) + "\" ;";
+                    " and discovery.type =\"" + entries.getString(TYPE) + "\" " +" and discovery.port=" +entries.getInteger(PORT)+" ;";
             eventBus.<JsonObject>request(METRIC_DATA, new JsonObject().put(METHOD, "runProvision").put(QUERY, query).mergeIn(entries), handler -> {
                 try {
                     if (handler.succeeded() && handler.result().body() != null) {
@@ -143,14 +150,18 @@ public class Monitor {
                         LOGGER.info(" context :{}, status :{} , message :{}", context.getBodyAsJson(), "success", handler.result().body().getString(MESSAGE));
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                        response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                        if(handler.cause().getMessage().equals("[wrong id provided or no result to showcase]")){
+                            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong credentials provided or discovery result is fail").encodePrettily());
+                        }else{
+                            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
+                        }
                         promise.fail("provision failed");
                         LOGGER.error("error occurred :{}", handler.cause().getMessage());
                     }
                 } catch (Exception exception) {
                     response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
             });
             future.onComplete(handler -> {
@@ -170,7 +181,7 @@ public class Monitor {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(MESSAGE, exception.getMessage()).put(STATUS, FAIL).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
 
     }
@@ -212,7 +223,7 @@ public class Monitor {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong json format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
 
     }
@@ -233,7 +244,7 @@ public class Monitor {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
 
         });
@@ -256,7 +267,7 @@ public class Monitor {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
 
         });
@@ -264,7 +275,7 @@ public class Monitor {
 
     private void update(RoutingContext context) {
         var response = context.response();
-        Bootstrap.getVertx().eventBus().<JsonObject>request(METRIC_DATA,new JsonObject().put(METHOD,"update").put(PORT,context.getBodyAsJson().getInteger(PORT)),handler->{
+        Bootstrap.getVertx().eventBus().<JsonObject>request(METRIC_DATA,new JsonObject().put(METHOD,"update").put(PORT,context.getBodyAsJson().getInteger(PORT)).put(MONITOR_ID,context.pathParam("id")),handler->{
             try {
                 if (handler.succeeded() && handler.result().body() != null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -277,7 +288,7 @@ public class Monitor {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
 
@@ -308,14 +319,14 @@ public class Monitor {
                 } catch (Exception exception) {
                     response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
 
             });
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getMessage());
+            LOGGER.error("exception occurred :",exception);
         }
     }
 }

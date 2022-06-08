@@ -10,10 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -90,7 +87,9 @@ public class Utils {
             }
         }
         if (errors.isEmpty()) {
-            output.remove(STATUS);
+            if(!entries.getString(CATEGORY).equals("discovery")){
+                output.remove(STATUS);
+            }
             entries.put(STATUS, SUCCESS).put(RESULT, output);
         } else {
             entries.put(STATUS, FAIL).put(ERROR, errors);

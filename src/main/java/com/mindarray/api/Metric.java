@@ -26,20 +26,27 @@ public class Metric {
     }
 
     private void filter(RoutingContext context) {
-        var credentials = new JsonObject();
-        var entries = context.getBodyAsJson();
-        var keyList = Utils.keyList("metric");
-        entries.forEach(value -> {
-            if (keyList.contains(value.getKey())) {
-                if (credentials.getValue(value.getKey()) instanceof String) {
-                    credentials.put(value.getKey(), entries.getString(value.getKey()).trim());
-                } else {
-                    credentials.put(value.getKey(), entries.getValue(value.getKey()));
+        try{
+            var credentials = new JsonObject();
+            var entries = context.getBodyAsJson();
+            var keyList = Utils.keyList("metric");
+            entries.forEach(value -> {
+                if (keyList.contains(value.getKey())) {
+                    if (credentials.getValue(value.getKey()) instanceof String) {
+                        credentials.put(value.getKey(), entries.getString(value.getKey()).trim());
+                    } else {
+                        credentials.put(value.getKey(), entries.getValue(value.getKey()));
+                    }
                 }
-            }
-        });
-        context.setBody(credentials.toBuffer());
-        context.next();
+            });
+            context.setBody(credentials.toBuffer());
+            context.next();
+        }catch (Exception exception){
+            context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
+            context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
+          LOGGER.error("exception occurred :",exception);
+        }
+
     }
 
     private void validate(RoutingContext context) {
@@ -59,7 +66,7 @@ public class Metric {
                 var errors = new ArrayList<String>();
                 var entries = context.getBodyAsJson();
                 if ((!entries.containsKey(TIME)) || entries.getInteger(TIME) <= 0 || entries.getInteger(TIME) % 1000 != 0) {
-                    errors.add("wrong datatype provided for time or time field is absent");
+                    errors.add("time field is absent or not in multiple of 1000");
                 }
                 if (context.pathParam("id") == null) {
                     errors.add("metric_id is null or wrong data type provided");
@@ -94,7 +101,7 @@ public class Metric {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong json format").put(ERROR, exception.getCause().getMessage()).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
     }
 
@@ -106,7 +113,7 @@ public class Metric {
             var type = context.queryParam("type");
             if (!type.isEmpty() && type.get(0).equals("monitor")) {
                 query = "select * from metric where monitor_id=" + context.pathParam("id") + ";";
-            } else if (context.normalizedPath().equals("/api/Metric")) {
+            } else if (context.normalizedPath().equals("/api/metric")) {
                 query = "select * from metric;";
             } else {
                 query = "select * from metric where metric_id=" + context.pathParam("id") + ";";
@@ -125,14 +132,14 @@ public class Metric {
                 } catch (Exception exception) {
                     response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
 
             });
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(MESSAGE, exception.getMessage()).put(STATUS, FAIL).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
 
         }
     }
@@ -157,14 +164,14 @@ public class Metric {
                 } catch (Exception exception) {
                     response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
 
             });
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(MESSAGE, exception.getMessage()).put(STATUS, FAIL).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
 
     }
@@ -176,8 +183,8 @@ public class Metric {
             Promise<String> promise = Promise.promise();
             Future<String> future = promise.future();
             int limitValue;
-            String getQuery = "select type from monitor where monitor_id=" + context.pathParam("id") + ";";
-            String query = "select * from polling where monitor_id= idValue and metric_group= \"groupValue\" order by id desc limit limitValue";
+            var getQuery = "select type from monitor where monitor_id=" + context.pathParam("id") + ";";
+            var query = "select * from polling where monitor_id= idValue and metric_group= \"groupValue\" order by timestamp desc limit limitValue";
             var groups = context.queryParam("group");
             var limit = context.queryParam("limit");
             if (limit.isEmpty()) {
@@ -233,7 +240,7 @@ public class Metric {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(MESSAGE, exception.getMessage()).put(STATUS, FAIL).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+           LOGGER.error("exception occurred :",exception);
         }
     }
 

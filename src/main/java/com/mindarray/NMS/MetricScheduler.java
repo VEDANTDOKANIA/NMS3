@@ -57,7 +57,7 @@ public class MetricScheduler extends AbstractVerticle {
             }
         });
         eventBus.<JsonObject>localConsumer(METRIC_SCHEDULER_UPDATE,handler ->{
-            if((handler.body() != null && handler.body().containsKey(RESULT) && handler.body().getJsonArray(RESULT) !=null)){
+            if(handler.body() != null){
                 metric.put(handler.body().getInteger(METRIC_ID),handler.body().getInteger(TIME));
                 scheduledMetric.put(handler.body().getInteger(METRIC_ID),handler.body().getInteger(TIME));
             } else {

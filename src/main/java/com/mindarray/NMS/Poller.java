@@ -53,7 +53,7 @@ public class Poller extends AbstractVerticle {
                     LOGGER.error("error occurred :{}", "scheduling polling handler body is null");
                 }
             } catch (Exception exception) {
-                LOGGER.error("error occurred :{}", exception.getMessage());
+               LOGGER.error("exception occurred :",exception);
             }
         });
         startPromise.complete();

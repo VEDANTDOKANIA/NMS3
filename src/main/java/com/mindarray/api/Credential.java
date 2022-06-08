@@ -48,7 +48,7 @@ public class Credential {
         }catch (Exception exception){
            context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
            context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getCause().getMessage());
+          LOGGER.error("exception occurred :",exception);
         }
 
 
@@ -183,14 +183,14 @@ public class Credential {
                 }
                 default ->    {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
-                    response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong method selected").encodePrettily());
+                    response.end(new JsonObject().put(STATUS, FAIL).encodePrettily());
                     LOGGER.error("error occurred {} ", context.request().method());
                 }
             }
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
-            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getCause().getMessage());
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
+            LOGGER.error("exception occurred :",exception);
         }
     }
 
@@ -213,7 +213,7 @@ public class Credential {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
     }
@@ -247,7 +247,7 @@ public class Credential {
                     } catch (Exception exception) {
                         response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                        LOGGER.error(exception.getMessage());
+                        LOGGER.error("exception occurred :",exception);
                     }
                 });
             } else {
@@ -275,7 +275,7 @@ public class Credential {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
     }
@@ -296,7 +296,7 @@ public class Credential {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
 
         });
@@ -318,7 +318,7 @@ public class Credential {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
 
         });

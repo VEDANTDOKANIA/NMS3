@@ -49,7 +49,7 @@ public class Discovery {
         }catch (Exception exception){
             context.response().setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             context.response().end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong Json format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getCause().getMessage());
+          LOGGER.error("exception occurred :",exception);
         }
 
     }
@@ -151,13 +151,13 @@ public class Discovery {
                 default -> {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "no matching route").encodePrettily());
-                    LOGGER.error("error occurred :{}", "No matching route");
+                    LOGGER.error("error occurred :{}", "no matching route");
                 }
             }
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
-            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "wrong json format").put(ERROR, exception.getCause().getMessage()).encodePrettily());
-            LOGGER.error("error occurred :{}", exception.getMessage());
+            response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getCause().getMessage()).encodePrettily());
+           LOGGER.error("exception occurred :",exception);
         }
     }
 
@@ -181,7 +181,7 @@ public class Discovery {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
     }
@@ -206,7 +206,7 @@ public class Discovery {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
     }
@@ -227,7 +227,7 @@ public class Discovery {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
 
         });
@@ -251,7 +251,7 @@ public class Discovery {
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                 response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                LOGGER.error(exception.getMessage());
+                LOGGER.error("exception occurred :",exception);
             }
         });
     }
@@ -274,7 +274,7 @@ public class Discovery {
                     } catch (Exception exception) {
                         response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                        LOGGER.error(exception.getMessage());
+                        LOGGER.error("exception occurred :",exception);
                     }
 
                 });
@@ -308,7 +308,7 @@ public class Discovery {
                     }
                 } catch (Exception exception) {
                     promise.fail(exception.getMessage());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
 
             });
@@ -329,7 +329,7 @@ public class Discovery {
                     }
                 } catch (Exception exception) {
                     promiseQuery.fail(exception.getCause().getMessage());
-                    LOGGER.error(exception.getMessage());
+                    LOGGER.error("exception occurred :",exception);
                 }
             });
             futureQuery.onComplete(handler -> {
@@ -352,7 +352,7 @@ public class Discovery {
                         } catch (Exception exception) {
                             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
                             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, exception.getMessage()).encodePrettily());
-                            LOGGER.error(exception.getMessage());
+                            LOGGER.error("exception occurred :",exception);
                         }
 
                     });
@@ -365,7 +365,7 @@ public class Discovery {
         } catch (Exception exception) {
             response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, "Wrong Json Format").put(ERROR, exception.getMessage()).encodePrettily());
-            LOGGER.error(exception.getMessage());
+            LOGGER.error("exception occurred :",exception);
         }
 
     }
