@@ -110,7 +110,7 @@ public class DatabaseEngine extends AbstractVerticle {
                         });
                 default -> {
                     handler.fail(-1, "no matching method found");
-                    LOGGER.error("Error occurred :{}", "no matching method found");
+                    LOGGER.error("error occurred :{}", "no matching method found");
                 }
             }
         });
@@ -124,19 +124,19 @@ public class DatabaseEngine extends AbstractVerticle {
                                 insert(MONITOR_TABLE, new JsonObject().put(TYPE, handler.body().getString(TYPE)).put(PORT, handler.body().getInteger(PORT)).put(IP, handler.body().getString(IP)).put("host", handler.body().getString("host")))).onComplete(futureResult -> {
                             try {
                                 if (futureResult.succeeded()) {
-                                    var metric = new JsonObject().put("monitor.id", futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
+                                    var metric = new JsonObject().put(MONITOR_ID, futureResult.result().getString("id")).put(CREDENTIAL_PROFILE, handler.body().getString(CREDENTIAL_PROFILE));
                                     var objects = new JsonObject();
-                                    if (handler.body().containsKey("objects") && handler.body().getString(TYPE).equals("snmp")) {
-                                        var object = handler.body().getJsonObject("objects").getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
-                                        objects.put("objects", object);
+                                    if (handler.body().containsKey(OBJECTS) && handler.body().getString(TYPE).equals(SNMP)) {
+                                        var object = handler.body().getJsonObject(OBJECTS).getJsonArray("interfaces").stream().map(JsonObject::mapFrom).filter(value -> value.getString("interface.operational.status").equals("up")).toList();
+                                        objects.put(OBJECTS, object);
                                     }
                                     for (int index = 0; index < Utils.metricGroup(handler.body().getString(TYPE)).size(); index++) {
                                         var groups = Utils.metricGroup(handler.body().getString(TYPE)).getJsonObject(index);
-                                        if (groups.getString("metric.group").equals("interface")) {
+                                        if (groups.getString(METRIC_GROUP).equals("interface")) {
                                             metric.mergeIn(objects);
                                         }
                                         futures.add(insert(METRIC_TABLE, metric.mergeIn(groups)));
-                                        metric.remove("objects");
+                                        metric.remove(OBJECTS);
                                     }
                                     CompositeFuture.join(futures).onComplete(completeHandler -> {
                                         if (completeHandler.succeeded()) {
@@ -317,7 +317,7 @@ public class DatabaseEngine extends AbstractVerticle {
             if (data instanceof String) {
                 query.append("\"").append(data).append("\",");
             }else if(data instanceof JsonObject || data instanceof JsonArray){
-                query.append("\'").append(data).append("\',");
+                query.append("'").append(data).append("',");
             } else {
                 query.append(data).append(",");
             }
@@ -361,12 +361,12 @@ public class DatabaseEngine extends AbstractVerticle {
                 try (var connection = connect(); var statement = connection.createStatement()) {
                     statement.execute(String.valueOf(query));
                 } catch (Exception exception) {
-                    handler.fail(exception.getCause().getMessage());
+                    handler.fail(exception.getMessage());
                 }
                 handler.complete();
             }).onComplete(completeHandler -> {
                 if (completeHandler.succeeded()) {
-                    getId(table).onComplete(id -> promise.complete(entries.put(MESSAGE, "Your unique id is " + id.result()).put("id", id.result())));
+                    getId(table).onComplete(id -> promise.complete(entries.put(MESSAGE, "your unique id is " + id.result()).put("id", id.result())));
                 } else {
                     promise.fail(completeHandler.cause().getMessage());
                 }

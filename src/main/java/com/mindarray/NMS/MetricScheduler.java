@@ -37,8 +37,8 @@ public class MetricScheduler extends AbstractVerticle {
                 var result = handler.body().getJsonArray(RESULT);
                 for (int index = 0; index < result.size(); index++) {
                     var object = result.getJsonObject(index);
-                    metric.put(object.getInteger("metric.id"), object.getInteger("time"));
-                    scheduledMetric.put(object.getInteger("metric.id"), object.getInteger("time"));
+                    metric.put(object.getInteger(METRIC_ID), object.getInteger(TIME));
+                    scheduledMetric.put(object.getInteger(METRIC_ID), object.getInteger(TIME));
                 }
             } else {
                 LOGGER.error("error occurred :{}", "handler body is null");
@@ -49,8 +49,8 @@ public class MetricScheduler extends AbstractVerticle {
                 var result = handler.body().getJsonArray(RESULT);
                 for (int index = 0; index < result.size(); index++) {
                     var object = result.getJsonObject(index);
-                    metric.remove(object.getInteger("metric.id"));
-                    scheduledMetric.remove(object.getInteger("metric.id"));
+                    metric.remove(object.getInteger(METRIC_ID));
+                    scheduledMetric.remove(object.getInteger(METRIC_ID));
                 }
             } else {
                 LOGGER.error("error occurred :{}", "handler body is null");

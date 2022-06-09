@@ -77,7 +77,7 @@ public class Credential {
                             if (entries.containsKey(COMMUNITY)) {
                                 error.add("wrong key community in type " + entries.getString(PROTOCOL));
                             }
-                        } else if (entries.getString(PROTOCOL).equals("snmp")) {
+                        } else if (entries.getString(PROTOCOL).equals(SNMP)) {
                             if (!(entries.containsKey("community"))) {
                                 error.add("community not provided");
                             }
@@ -184,7 +184,7 @@ public class Credential {
                 default ->    {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).encodePrettily());
-                    LOGGER.error("error occurred {} ", context.request().method());
+                    LOGGER.error("error occurred :{} ", context.request().method());
                 }
             }
         } catch (Exception exception) {
@@ -204,7 +204,7 @@ public class Credential {
                 if (handler.succeeded()) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, SUCCESS).put(MESSAGE, handler.result().body().getString(MESSAGE)).encodePrettily());
-                    LOGGER.info(" context:{}, status :{} , message :{}", context.getBodyAsJson(), "success", handler.result().body().getString(MESSAGE));
+                    LOGGER.info("context:{}, status :{} , message :{}", context.getBodyAsJson(), SUCCESS, handler.result().body().getString(MESSAGE));
                 } else {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
@@ -226,7 +226,7 @@ public class Credential {
         var query = "select protocol from credential where credential_id=" + context.pathParam("id") + ";";
         eventBus.<JsonObject>request(DATABASE, new JsonObject().put(METHOD, GET_QUERY).put(QUERY, query), handler -> {
             if (handler.succeeded() && handler.result().body() != null) {
-                if (handler.result().body().getJsonArray(RESULT).getJsonObject(0).getString(PROTOCOL).equals("snmp")) {
+                if (handler.result().body().getJsonArray(RESULT).getJsonObject(0).getString(PROTOCOL).equals(SNMP)) {
                     data.remove(USERNAME);
                     data.remove(PASSWORD);
                 } else {
@@ -238,7 +238,7 @@ public class Credential {
                         if (result.succeeded() && result.result().body() != null) {
                             response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                             response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
-                            LOGGER.info("context :{}, status :{}", context.getBodyAsJson(), "success");
+                            LOGGER.info("context :{}, status :{}", context.getBodyAsJson(), SUCCESS);
                         } else {
                             response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                             response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, result.cause().getMessage()).encodePrettily());
@@ -266,11 +266,11 @@ public class Credential {
                 if (handler.succeeded() && handler.result().body() != null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
-                    LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                    LOGGER.info("context :{}, status :{}", context.pathParam("id"), SUCCESS);
                 } else {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(STATUS, FAIL).put(MESSAGE, handler.cause().getMessage()).encodePrettily());
-                    LOGGER.error("error occurred: {}", handler.cause().getMessage());
+                    LOGGER.error("error occurred :{}", handler.cause().getMessage());
                 }
             } catch (Exception exception) {
                 response.setStatusCode(500).putHeader(CONTENT_TYPE, HEADER_TYPE);
@@ -280,14 +280,14 @@ public class Credential {
         });
     }
 
-    private void get(RoutingContext context) {
+    private void get(RoutingContext context)  {
         var response = context.response();
         Bootstrap.getVertx().eventBus().<JsonObject>request(DATABASE, new JsonObject().put(METHOD, DATABASE_GET).put(TABLE, CREDENTIAL_TABLE).put("condition", "all"), handler -> {
             try {
                 if (handler.succeeded() && handler.result().body() != null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
-                    LOGGER.info("status :{}", "success");
+                    LOGGER.info("status :{}", SUCCESS);
                 } else {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -309,7 +309,7 @@ public class Credential {
                 if (handler.succeeded() && handler.result().body() != null) {
                     response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(handler.result().body().encodePrettily());
-                    LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                    LOGGER.info("context :{}, status :{}", context.pathParam("id"), SUCCESS);
                 } else {
                     response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                     response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -323,4 +323,5 @@ public class Credential {
 
         });
     }
+
 }

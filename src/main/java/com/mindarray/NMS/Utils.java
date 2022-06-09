@@ -18,15 +18,14 @@ import static com.mindarray.NMS.Constant.*;
 
 public class Utils {
     private static final Logger LOGGER = LoggerFactory.getLogger(Utils.class);
-
     public static JsonObject checkAvailability(JsonObject entries) {
         var errors = new ArrayList<String>();
-        if ((!entries.containsKey("ip")) || entries.getString("ip") == null) {
+        if ((!entries.containsKey(IP)) || entries.getString(IP) == null) {
             errors.add("ip address is null in check availability");
             LOGGER.error("error occurred :{}","ip address is null in check availability");
             return entries.put(STATUS, FAIL).put(ERROR, "ip address is null in check availability");
         } else {
-            var processBuilder = new NuProcessBuilder(Arrays.asList("fping", "-c", "3", "-t", "1000", "-q", entries.getString("ip")));
+            var processBuilder = new NuProcessBuilder(Arrays.asList("fping", "-c", "3", "-t", "1000", "-q", entries.getString(IP)));
             var handler = new ProcessHandler();
             processBuilder.setProcessListener(handler);
             var process = processBuilder.start();
@@ -39,11 +38,11 @@ public class Utils {
                     var pattern = Pattern.compile("\\d+.\\d+.\\d+.\\d+\\s+:\\s+\\w+/\\w+/%\\w+\\s+=\\s+\\d+/\\d+/(\\d+)%");
                     var matcher = pattern.matcher(result);
                     if (matcher.find() && (!matcher.group(1).equals("0"))) {
-                            errors.add(" packet loss percentage is :" + matcher.group(1));
+                            errors.add("packet loss percentage is :" + matcher.group(1));
                     }
                 }
             } catch (Exception exception) {
-                errors.add(exception.getCause().getMessage());
+                errors.add(exception.getMessage());
             } finally {
                 process.destroy(true);
             }
@@ -51,6 +50,7 @@ public class Utils {
         if (errors.isEmpty()) {
             return entries.put(STATUS, SUCCESS);
         } else {
+            errors.add("ping failed");
             return entries.put(STATUS, FAIL).put(ERROR, errors);
         }
     }
@@ -101,7 +101,7 @@ public class Utils {
         if( entries == null ||entries.getString(IP) == null || entries.getString(TYPE) ==null || entries.getInteger(PORT) ==null){
             return new JsonObject().put(STATUS,FAIL).put(MESSAGE,"entries is null");
         }else{
-            if ( entries.containsKey(TYPE) && entries.getString(TYPE).equals("snmp")) {
+            if ( entries.containsKey(TYPE) && entries.getString(TYPE).equals(SNMP)) {
                 return entries.put(STATUS, SUCCESS);
             } else {
                 try( var socket = new Socket(entries.getString(IP),entries.getInteger(PORT))){
@@ -116,21 +116,21 @@ public class Utils {
 
     public static JsonArray metricGroup(String type) {
         var metric = new JsonArray();
-        if (type.equals("linux")) {
+        if (type.equals(LINUX)) {
             metric.add(new JsonObject().put(METRIC_GROUP, CPU).put(TIME, 60000));
             metric.add(new JsonObject().put(METRIC_GROUP, DISK).put(TIME, 70000));
             metric.add(new JsonObject().put(METRIC_GROUP, MEMORY).put(TIME, 80000));
             metric.add(new JsonObject().put(METRIC_GROUP, PROCESS).put(TIME, 60000));
             metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 100000));
             metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
-        } else if (type.equals("windows")) {
+        } else if (type.equals(WINDOWS)) {
             metric.add(new JsonObject().put(METRIC_GROUP, CPU).put(TIME, 80000));
             metric.add(new JsonObject().put(METRIC_GROUP, DISK).put(TIME, 100000));
             metric.add(new JsonObject().put(METRIC_GROUP, MEMORY).put(TIME, 110000));
             metric.add(new JsonObject().put(METRIC_GROUP, PROCESS).put(TIME, 80000));
             metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 120000));
             metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
-        } else if (type.equals("snmp")) {
+        } else if (type.equals(SNMP)) {
             metric.add(new JsonObject().put(METRIC_GROUP, SYSTEM).put(TIME, 80000));
             metric.add(new JsonObject().put(METRIC_GROUP, INTERFACE).put(TIME, 70000));
             metric.add(new JsonObject().put(METRIC_GROUP, PING).put(TIME, 60000));
@@ -140,7 +140,7 @@ public class Utils {
 
     public static int[] groupTime(String type, String metricGroup) {
         int[] time = new int[2];
-        if (type.equals("linux")) {
+        if (type.equals(LINUX)) {
             if (metricGroup.equals(CPU)) {
                 time[0] = 60000;
                 time[1] = 86300000;
@@ -160,7 +160,7 @@ public class Utils {
                 time[0] = 60000;
                 time[1] = 86400000;
             }
-        } else if (type.equals("windows")) {
+        } else if (type.equals(WINDOWS)) {
             if (metricGroup.equals(CPU)) {
                 time[0] = 80000;
                 time[1] = 86400000;
@@ -181,7 +181,7 @@ public class Utils {
                 time[1] = 86400000;
             }
 
-        } else if (type.equals("snmp")) {
+        } else if (type.equals(SNMP)) {
             if (metricGroup.equals(SYSTEM)) {
                 time[0] = 80000;
                 time[1] = 86400000;

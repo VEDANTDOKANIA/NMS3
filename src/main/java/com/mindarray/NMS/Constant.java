@@ -56,6 +56,7 @@ public class Constant {
     public static final String DISCOVERY_TYPE = "type";
     public static final String DISCOVERY_PORT = "port";
     public static final String DISCOVERY_ID = "discovery.id";
+    public static final String DISCOVERY_RESULT ="discovery.result";
 
     //Monitor Json
     public static final String MONITOR_ID = "monitor.id";
@@ -98,4 +99,10 @@ public class Constant {
     public static final String SYSTEM ="system";
     public static final String PING ="ping";
     public static final String INTERFACE ="interface";
+
+    //Metric types
+    public static final String LINUX ="linux";
+    public static final String WINDOWS ="windows";
+    public static final String SNMP ="snmp";
+
 }

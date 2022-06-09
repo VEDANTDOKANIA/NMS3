@@ -30,7 +30,7 @@ public class ApiRouter extends AbstractVerticle {
                         LOGGER.info("http server started");
                         startPromise.complete();
                     } else {
-                        LOGGER.info("unable to start HTTP server :{}", handler.cause().getMessage());
+                        LOGGER.info("unable to start http server :{}", handler.cause().getMessage());
                         startPromise.fail(handler.cause().getMessage());
                     }
                 }

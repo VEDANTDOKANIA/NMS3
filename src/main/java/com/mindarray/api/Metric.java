@@ -65,11 +65,11 @@ public class Metric {
             } else if ("PUT".equals(request)) {
                 var errors = new ArrayList<String>();
                 var entries = context.getBodyAsJson();
-                if ((!entries.containsKey(TIME)) || entries.getInteger(TIME) <= 0 || entries.getInteger(TIME) % 1000 != 0) {
-                    errors.add("time field is absent or not in multiple of 1000");
+                if ((!entries.containsKey(TIME)) || entries.getInteger(TIME) <= 0 || entries.getInteger(TIME) % 10000 != 0) {
+                    errors.add("time field is absent or not in multiple of 10000");
                 }
                 if (context.pathParam("id") == null) {
-                    errors.add("metric_id is null or wrong data type provided");
+                    errors.add("metric_id is null");
                 }
                 if (errors.isEmpty()) {
                     var query = "select type,metric_group from metric,monitor where metric.monitor_id=monitor.monitor_id and metric_id= " + context.pathParam("id") + ";";
@@ -123,7 +123,7 @@ public class Metric {
                     if (handler.succeeded() && handler.result().body() != null) {
                         response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(handler.result().body().encodePrettily());
-                        LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                        LOGGER.info("context :{}, status :{}", context.pathParam("id"), SUCCESS);
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
@@ -155,7 +155,7 @@ public class Metric {
                         response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, SUCCESS).encodePrettily());
                         eventBus.send(METRIC_SCHEDULER_UPDATE, context.getBodyAsJson());
-                        LOGGER.info("context:{}, status :{}", context.getBodyAsJson(), "success");
+                        LOGGER.info("context:{}, status :{}", context.getBodyAsJson(), SUCCESS);
                     } else {
                         response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                         response.end(new JsonObject().put(STATUS, FAIL).put(ERROR, handler.cause().getMessage()).encodePrettily());
@@ -224,7 +224,7 @@ public class Metric {
                         if (handler.succeeded() && handler.result().body() != null) {
                             response.setStatusCode(200).putHeader(CONTENT_TYPE, HEADER_TYPE);
                             response.end(handler.result().body().encodePrettily());
-                            LOGGER.info("context :{}, status :{}", context.pathParam("id"), "success");
+                            LOGGER.info("context :{}, status :{}", context.pathParam("id"), SUCCESS);
                         } else {
                             response.setStatusCode(400).putHeader(CONTENT_TYPE, HEADER_TYPE);
                             response.end(new JsonObject().put(MESSAGE, handler.cause().getMessage()).put(STATUS, FAIL).encodePrettily());
